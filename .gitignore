@@ -1,0 +1,46 @@
+# --- OS / editors ---
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# --- Python ---
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+
+# --- JavaScript ---
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# --- Build outputs ---
+build/
+output/
+*.log
+
+# --- Test footage (large, never committed) ---
+samples/*
+!samples/README.md
+
+# --- Bundled binaries & models (fetched by scripts) ---
+packaging/models/*
+!packaging/models/manifest.json
+packaging/ffmpeg/*
+!packaging/ffmpeg/README.md
+
+# --- Safety net: media files anywhere ---
+*.mp4
+*.mov
+*.mkv
+*.m4a
+*.wav

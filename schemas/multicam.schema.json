@@ -1,0 +1,666 @@
+{
+  "$defs": {
+    "AudioConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "gains_db": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "format": "uuid"
+          },
+          "type": "object"
+        },
+        "mode": {
+          "$ref": "#/$defs/AudioMode",
+          "default": "mix"
+        },
+        "single_clip_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "mode",
+        "gains_db",
+        "single_clip_id"
+      ],
+      "title": "AudioConfig",
+      "type": "object"
+    },
+    "AudioMode": {
+      "enum": [
+        "mix",
+        "single"
+      ],
+      "title": "AudioMode",
+      "type": "string"
+    },
+    "Clip": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "media": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MediaInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "path": {
+          "description": "Absolute path; files are referenced in place",
+          "minLength": 1,
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/ClipRole",
+          "default": "speaker"
+        },
+        "speaker_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sync": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyncResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "role",
+        "speaker_label",
+        "media",
+        "sync"
+      ],
+      "title": "Clip",
+      "type": "object"
+    },
+    "ClipRole": {
+      "enum": [
+        "speaker",
+        "wide",
+        "broll"
+      ],
+      "title": "ClipRole",
+      "type": "string"
+    },
+    "CutList": {
+      "additionalProperties": false,
+      "properties": {
+        "audio": {
+          "$ref": "#/$defs/AudioConfig"
+        },
+        "fps": {
+          "$ref": "#/$defs/Rational"
+        },
+        "project_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "removals": {
+          "items": {
+            "$ref": "#/$defs/Removal"
+          },
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "type": "integer"
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/Segment"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "version": {
+          "default": 1,
+          "description": "Edit revision; bumps on every change",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "version",
+        "project_id",
+        "fps",
+        "segments",
+        "removals",
+        "audio"
+      ],
+      "title": "CutList",
+      "type": "object"
+    },
+    "GTClip": {
+      "additionalProperties": false,
+      "properties": {
+        "clap_end_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clap_start_ms": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "file": {
+          "description": "File name inside the recording folder",
+          "minLength": 1,
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/ClipRole",
+          "default": "speaker"
+        },
+        "speaker_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "file",
+        "role",
+        "speaker_label",
+        "clap_start_ms",
+        "clap_end_ms"
+      ],
+      "title": "GTClip",
+      "type": "object"
+    },
+    "GroundTruth": {
+      "additionalProperties": false,
+      "properties": {
+        "annotated_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MsRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Window (reference timeline) where speech is fully labeled. None = whole recording. Speaker-accuracy is scored only inside it."
+        },
+        "clips": {
+          "items": {
+            "$ref": "#/$defs/GTClip"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "recording_id": {
+          "pattern": "^T\\d+$",
+          "type": "string"
+        },
+        "reference_file": {
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "type": "integer"
+        },
+        "speech": {
+          "items": {
+            "$ref": "#/$defs/SpeechTurn"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "recording_id",
+        "description",
+        "reference_file",
+        "clips",
+        "speech",
+        "annotated_range"
+      ],
+      "title": "GroundTruth",
+      "type": "object"
+    },
+    "MediaInfo": {
+      "additionalProperties": false,
+      "description": "Facts about a source file, read with ffprobe (Phase 1).",
+      "properties": {
+        "audio_channels": {
+          "default": 0,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "audio_codec": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "audio_sample_rate": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "duration_frames": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fps": {
+          "$ref": "#/$defs/Rational"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "is_vfr": {
+          "type": "boolean"
+        },
+        "video_codec": {
+          "type": "string"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fps",
+        "is_vfr",
+        "duration_frames",
+        "width",
+        "height",
+        "video_codec",
+        "audio_codec",
+        "audio_sample_rate",
+        "audio_channels"
+      ],
+      "title": "MediaInfo",
+      "type": "object"
+    },
+    "MsRange": {
+      "additionalProperties": false,
+      "properties": {
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "start_ms": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_ms",
+        "end_ms"
+      ],
+      "title": "MsRange",
+      "type": "object"
+    },
+    "OutputSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "fps": {
+          "$ref": "#/$defs/Rational"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fps",
+        "width",
+        "height"
+      ],
+      "title": "OutputSettings",
+      "type": "object"
+    },
+    "Preset": {
+      "enum": [
+        "calm",
+        "balanced",
+        "dynamic"
+      ],
+      "title": "Preset",
+      "type": "string"
+    },
+    "Project": {
+      "additionalProperties": false,
+      "properties": {
+        "clips": {
+          "items": {
+            "$ref": "#/$defs/Clip"
+          },
+          "type": "array"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "output": {
+          "$ref": "#/$defs/OutputSettings"
+        },
+        "preset": {
+          "$ref": "#/$defs/Preset",
+          "default": "balanced"
+        },
+        "reference_clip_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "name",
+        "output",
+        "preset",
+        "clips",
+        "reference_clip_id",
+        "created_at"
+      ],
+      "title": "Project",
+      "type": "object"
+    },
+    "Rational": {
+      "additionalProperties": false,
+      "description": "An exact positive rational number, e.g. a frame rate of 30000/1001.",
+      "properties": {
+        "den": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "num": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "title": "Rational",
+      "type": "object"
+    },
+    "Reframe": {
+      "additionalProperties": false,
+      "description": "Crop/zoom for a segment. Normalized coordinates (0..1) of the crop center.",
+      "properties": {
+        "cx": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "cy": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "scale": {
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "cx",
+        "cy",
+        "scale"
+      ],
+      "title": "Reframe",
+      "type": "object"
+    },
+    "Removal": {
+      "additionalProperties": false,
+      "properties": {
+        "approved": {
+          "default": false,
+          "type": "boolean"
+        },
+        "end_frame": {
+          "description": "Exclusive",
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/RemovalKind"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_frame",
+        "end_frame",
+        "kind",
+        "approved"
+      ],
+      "title": "Removal",
+      "type": "object"
+    },
+    "RemovalKind": {
+      "enum": [
+        "filler",
+        "silence",
+        "manual"
+      ],
+      "title": "RemovalKind",
+      "type": "string"
+    },
+    "Segment": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "end_frame": {
+          "description": "Exclusive",
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "reframe": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reframe"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "$ref": "#/$defs/SegmentSource",
+          "default": "auto"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_frame",
+        "end_frame",
+        "clip_id",
+        "source",
+        "reframe"
+      ],
+      "title": "Segment",
+      "type": "object"
+    },
+    "SegmentSource": {
+      "enum": [
+        "auto",
+        "manual"
+      ],
+      "title": "SegmentSource",
+      "type": "string"
+    },
+    "SpeechTurn": {
+      "additionalProperties": false,
+      "properties": {
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "speaker_label": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "start_ms": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "speaker_label",
+        "start_ms",
+        "end_ms"
+      ],
+      "title": "SpeechTurn",
+      "type": "object"
+    },
+    "SyncResult": {
+      "additionalProperties": false,
+      "description": "How a clip lines up with the project's reference clip.\n\nSign convention (shared with ``benchmark.GroundTruth``):\n    ``offset_samples`` = position of an event in THIS clip\n                         minus position of the same event in the REFERENCE clip.\n    Positive  -> this clip started recording EARLIER than the reference.\n    Negative  -> this clip started recording LATER than the reference.\n\n``drift_ppm``: how much faster this clip's clock runs than the reference,\nin parts per million. A value of +100 means the clip accumulates 0.36 s\nof extra duration per hour. This is a model parameter, not a timeline\nposition, so a float is acceptable here.",
+      "properties": {
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "drift_ppm": {
+          "default": 0.0,
+          "type": "number"
+        },
+        "offset_samples": {
+          "type": "integer"
+        },
+        "reference_clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "sample_rate": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "reference_clip_id",
+        "offset_samples",
+        "sample_rate",
+        "drift_ppm",
+        "confidence"
+      ],
+      "title": "SyncResult",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AUTO-GENERATED from multicam_engine models. Do not edit by hand.",
+  "properties": {
+    "CutList": {
+      "$ref": "#/$defs/CutList"
+    },
+    "GroundTruth": {
+      "$ref": "#/$defs/GroundTruth"
+    },
+    "Project": {
+      "$ref": "#/$defs/Project"
+    }
+  },
+  "title": "MulticamSchemas",
+  "type": "object"
+}

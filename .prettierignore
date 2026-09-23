@@ -1,0 +1,9 @@
+node_modules
+.venv
+pnpm-lock.yaml
+uv.lock
+schemas
+packages/types/src/generated
+samples
+packaging/models
+*.md

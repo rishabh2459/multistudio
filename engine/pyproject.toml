@@ -1,0 +1,19 @@
+[project]
+name = "multicam-engine"
+version = "0.1.0"
+description = "Multicam Studio processing engine: sync, speaker detection, switching, render, export."
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary" }
+dependencies = [
+  "pydantic>=2.8,<3",
+]
+
+[project.scripts]
+multicam = "multicam_engine.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/multicam_engine"]
