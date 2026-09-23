@@ -65,6 +65,9 @@ gt-build: ## Build ground_truth.json from labels: make gt-build REC=samples/T1
 gt-check: ## Validate all ground-truth files under samples/
 	uv run multicam gt check $(SAMPLES)
 
+gt-eval: ## Score sync vs ground truth: make gt-eval REC=samples/T1
+	uv run multicam gt eval-sync $(REC)
+
 check: lint typecheck test schemas-check ## Everything CI runs
 	pnpm format:check
 	uv run ruff format --check .

@@ -57,6 +57,11 @@ mypy_path = "engine/src"
 files = ["engine/src/multicam_engine", "tests", "scripts", "packaging/scripts"]
 warn_unreachable = true
 
+# SciPy ships no type information; treat it as untyped (results are cast at the call site).
+[[tool.mypy.overrides]]
+module = ["scipy", "scipy.*"]
+ignore_missing_imports = true
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true

@@ -9,7 +9,7 @@ Everything runs on your own machine using free, open-source components.
 🧾 **Decisions:** [`docs/DECISIONS.md`](docs/DECISIONS.md) ·
 🎥 **Test footage:** [`docs/TEST_FOOTAGE.md`](docs/TEST_FOOTAGE.md)
 
-**Current phase:** 0 — Foundation
+**Current phase:** 1 — Sync engine (code done; real-footage accuracy check pending)
 
 ---
 
@@ -59,7 +59,10 @@ Commit `uv.lock`, `pnpm-lock.yaml`, `schemas/` and `packages/types/src/generated
 | `make gt-audio REC=samples/T1` | Extract WAVs for labeling |
 | `make gt-build REC=samples/T1` | Build ground truth from Audacity labels |
 | `make gt-check` | Validate all test recordings |
+| `make gt-eval REC=samples/T1` | Score sync accuracy against ground truth |
 | `make fetch-models` | Download pinned model files |
+| `uv run multicam probe cam1.mp4` | Frame rate, VFR, duration, audio of a file |
+| `uv run multicam sync cam1.mp4 cam2.mp4 --out sync.json` | Sync clips by audio |
 | `uv run multicam --help` | Engine CLI |
 
 ## Repository layout

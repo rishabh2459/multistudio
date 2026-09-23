@@ -458,15 +458,16 @@ Total for the desktop product: **~4–5 months full-time**.
 **Goal:** Align any set of clips with sub-frame accuracy.
 
 **Tasks**
-- [ ] `media/probe`: ffprobe wrapper (fps, VFR detection, duration, codecs, audio layout)
-- [ ] `media/audio`: extract mono audio at fixed rate; cache to disk
-- [ ] `sync/gcc_phat`: coarse offset via GCC-PHAT on downsampled audio, refine at full rate
-- [ ] `sync/drift`: sync N windows across the recording, fit linear drift model
-- [ ] `sync/confidence`: peak sharpness + window agreement → 0–1 score
-- [ ] Handle clips that start late / end early / have partial overlap
-- [ ] Handle very weak or silent audio (low confidence → user warning, no crash)
-- [ ] CLI: `multicam sync cam1.mp4 cam2.mp4 --out sync.json`
-- [ ] Unit tests: synthetic signals with known offset, known drift, added noise
+- [x] `media/probe`: ffprobe wrapper (fps, VFR detection, duration, codecs, audio layout)
+- [x] `media/audio`: extract mono audio at fixed rate; cache to disk
+- [x] `sync/gcc_phat`: coarse offset via GCC-PHAT on downsampled audio, refine at full rate
+- [x] `sync/drift`: sync N windows across the recording, fit linear drift model
+- [x] `sync/confidence`: peak sharpness + window agreement → 0–1 score
+- [x] Handle clips that start late / end early / have partial overlap
+- [x] Handle very weak or silent audio (low confidence → user warning, no crash)
+- [x] CLI: `multicam sync cam1.mp4 cam2.mp4 --out sync.json`
+- [x] Unit tests: synthetic signals with known offset, known drift, added noise
+- [ ] Accuracy benchmark on real footage (T1, T3, T5, T6): `make test-accuracy`
 
 **Done when:** On the test library, sync error < 1 frame at start **and** end of 60+ minute recordings; low-quality audio yields a warning, not a crash.
 
@@ -750,7 +751,7 @@ Record every significant decision here (or in `docs/DECISIONS.md`). **D14 onward
 | Phase | Status | Started | Completed | Notes |
 |---|---|---|---|---|
 | 0 — Foundation | 🔄 In progress | 2026-09-22 | | Scaffold done; test footage pending |
-| 1 — Sync engine | ⬜ Not started | | | Reuse existing `sync.py` if available |
+| 1 — Sync engine | 🔄 In progress | 2026-09-23 | | Code + synthetic tests done (1 h clip: < 0.3 ms error, ~5 s). Real-footage benchmark pending (D29) |
 | 2 — Speaker detection + switch | ⬜ Not started | | | Reuse existing `switch.py` if available |
 | 3 — Render engine | ⬜ Not started | | | |
 | 4 — Backend | ⬜ Not started | | | |

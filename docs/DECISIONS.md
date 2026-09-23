@@ -16,6 +16,11 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | D22 | 2026-09-22 | Model files pinned by SHA-256 in `packaging/models/manifest.json` | Reproducible, tamper-evident bundles |
 | D23 | 2026-09-22 | CLI uses stdlib `argparse` | One fewer dependency to bundle |
 | D24 | 2026-09-22 | CI on Ubuntu for now; macOS jobs added when platform-specific code lands | Conserves free CI minutes |
+| D25 | 2026-09-23 | Sync analyses audio at **8 kHz mono**; offsets reported at 48 kHz | Speech < 4 kHz is enough; sub-sample peak interpolation gives µs precision; 1 h clip ≈ 115 MB RAM |
+| D26 | 2026-09-23 | Sync = coarse GCC-PHAT (1 kHz, whole clip, top-3 candidates) → windowed GCC-PHAT (8 kHz) → robust line fit (RANSAC-style) → second pass reading the clip along the fitted line | Handles partial overlap, drift up to ±500 ppm, noisy windows; drift doesn't smear the peak |
+| D27 | 2026-09-23 | PHAT restricted to 80 Hz–0.95·Nyquist with a magnitude floor | Plain PHAT gave false peaks from DC/hum/roll-off bins common to both recordings |
+| D28 | 2026-09-23 | Audio decoded by ffmpeg to a pipe (`f32le`); cache as `.npy` in the user cache folder | No soundfile/librosa dependency; re-runs skip decoding |
+| D29 | 2026-09-23 | Continue Phase 1 before test footage exists, using synthetic signals + generated video files; phase is marked done only after the real-footage benchmark passes | Unblocks development; accuracy on real devices still has to be proven |
 
 ## Dependencies added
 
@@ -27,3 +32,5 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | typescript | Apache-2.0 | dev only | Types |
 | eslint, @eslint/js, typescript-eslint, prettier | MIT | dev only | Lint/format |
 | json-schema-to-typescript | MIT | dev only | Type generation |
+| numpy | BSD-3 | engine | Signal arrays (Phase 1) |
+| scipy | BSD-3 | engine | FFT, resampling, filters (Phase 1) |
