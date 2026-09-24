@@ -9,6 +9,8 @@ Commands:
     multicam gt build RECORDING_DIR
     multicam gt check [SAMPLES_DIR]
     multicam gt eval-sync RECORDING_DIR...          (Phase 1)
+    multicam cutlist --sync sync.json [--wide F] [--label F=NAME] [--preset P]  (Phase 2)
+    multicam gt eval-switch RECORDING_DIR... [--preset P]                     (Phase 2)
 """
 
 from __future__ import annotations
@@ -28,11 +30,14 @@ from multicam_engine.benchmark.audacity import (
 )
 from multicam_engine.benchmark.audio import extract_wavs
 from multicam_engine.benchmark.ground_truth import GroundTruth
+from multicam_engine.benchmark.switch_accuracy import TARGET_ACCURACY, evaluate_switching
 from multicam_engine.benchmark.sync_accuracy import evaluate_recording
 from multicam_engine.media.audio import SYNC_SAMPLE_RATE, default_cache_dir
 from multicam_engine.media.ffmpeg import FFmpegNotFoundError
 from multicam_engine.media.probe import ProbeError, probe
 from multicam_engine.models import CutList, Project
+from multicam_engine.models.project import ClipRole, Preset
+from multicam_engine.pipeline import auto_edit, build_project
 from multicam_engine.sync.engine import SyncReport, sync_files
 
 _VALIDATE_KINDS: dict[str, type[BaseModel]] = {
@@ -203,6 +208,81 @@ def _cmd_gt_eval_sync(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def _parse_labels(items: list[str]) -> dict[str, str]:
+    labels: dict[str, str] = {}
+    for item in items:
+        file, sep, name = item.partition("=")
+        if not sep or not file or not name:
+            raise ValueError(f"--label must look like FILE=NAME, got {item!r}")
+        labels[Path(file).name] = name
+    return labels
+
+
+def _cmd_cutlist(args: argparse.Namespace) -> int:
+    try:
+        report = SyncReport.model_validate_json(Path(args.sync).read_text(encoding="utf-8"))
+        roles = {Path(f).name: ClipRole.WIDE for f in args.wide}
+        roles.update({Path(f).name: ClipRole.BROLL for f in args.broll})
+        project = build_project(
+            report,
+            name=args.name,
+            roles=roles,
+            labels=_parse_labels(args.label),
+            preset=Preset(args.preset),
+        )
+        result = auto_edit(project, vad=args.vad, cache_dir=default_cache_dir())
+    except FileNotFoundError as exc:
+        return _err(f"file not found: {exc}")
+    except (ValidationError, ValueError, ProbeError, FFmpegNotFoundError) as exc:
+        return _err(str(exc))
+
+    cutlist = result.cutlist
+    fps = cutlist.fps.to_fraction()
+    names = {c.id: (c.speaker_label or c.role.value) for c in project.clips}
+    total = cutlist.duration_frames
+    print(
+        f"preset {project.preset.value}, VAD {result.vad_backend}: "
+        f"{len(cutlist.segments)} shots, average {float(total / fps) / len(cutlist.segments):.1f} s"
+    )
+    share: dict[str, int] = {}
+    for seg in cutlist.segments:
+        share[names[seg.clip_id]] = share.get(names[seg.clip_id], 0) + seg.duration_frames
+    for name, frames in sorted(share.items(), key=lambda kv: -kv[1]):
+        print(f"  {name:<20} {frames / total:6.1%}  ({float(frames / fps):.1f} s)")
+    for w in result.warnings:
+        print(f"warning: {w}", file=sys.stderr)
+
+    out = Path(args.out)
+    out.write_text(cutlist.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    print(f"wrote {out}")
+    project_out = Path(args.project_out) if args.project_out else out.with_name("project.json")
+    project_out.write_text(project.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    print(f"wrote {project_out}")
+    return 0
+
+
+def _cmd_gt_eval_switch(args: argparse.Namespace) -> int:
+    failures = 0
+    for rec in args.recording_dirs:
+        try:
+            acc = evaluate_switching(
+                Path(rec), preset=Preset(args.preset), vad=args.vad, cache_dir=default_cache_dir()
+            )
+        except (FileNotFoundError, ValidationError, ValueError, ProbeError) as exc:
+            failures += 1
+            print(f"FAIL {rec}: {exc}", file=sys.stderr)
+            continue
+        verdict = "ok  " if acc.passed else "FAIL"
+        print(
+            f"{verdict} {acc.recording_id}: speaker accuracy {acc.accuracy:.1%} "
+            f"(target {TARGET_ACCURACY:.0%}) over {acc.speech_s:.0f} s of speech, "
+            f"{acc.segments} shots (avg {acc.mean_shot_s:.1f} s), "
+            f"short shots {acc.short_shots}, wide {acc.wide_share:.0%}"
+        )
+        failures += 0 if acc.passed else 1
+    return 1 if failures else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="multicam", description="Multicam Studio engine CLI")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -227,6 +307,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument("--no-cache", action="store_true", help="do not cache decoded audio")
     p_sync.set_defaults(func=_cmd_sync)
 
+    presets = [p.value for p in Preset]
+    vads = ["auto", "silero", "energy"]
+    p_cut = sub.add_parser("cutlist", help="auto-edit: who speaks when -> camera cuts")
+    p_cut.add_argument("--sync", required=True, help="sync report from `multicam sync --out`")
+    p_cut.add_argument("--wide", action="append", default=[], help="a wide camera (repeatable)")
+    p_cut.add_argument("--broll", action="append", default=[], help="never auto-selected")
+    p_cut.add_argument("--label", action="append", default=[], help="FILE=NAME (repeatable)")
+    p_cut.add_argument("--preset", choices=presets, default=Preset.BALANCED.value)
+    p_cut.add_argument("--vad", choices=vads, default="auto")
+    p_cut.add_argument("--name", default="Untitled", help="project name")
+    p_cut.add_argument("--out", default="cutlist.json")
+    p_cut.add_argument("--project-out", help="default: project.json next to --out")
+    p_cut.set_defaults(func=_cmd_cutlist)
+
     p_gt = sub.add_parser("gt", help="ground-truth tools for test footage")
     gt_sub = p_gt.add_subparsers(dest="gt_command", required=True)
 
@@ -245,6 +339,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_eval = gt_sub.add_parser("eval-sync", help="run sync and score it against ground truth")
     p_eval.add_argument("recording_dirs", nargs="+")
     p_eval.set_defaults(func=_cmd_gt_eval_sync)
+
+    p_esw = gt_sub.add_parser("eval-switch", help="auto-edit and score speaker accuracy")
+    p_esw.add_argument("recording_dirs", nargs="+")
+    p_esw.add_argument("--preset", choices=presets, default=Preset.BALANCED.value)
+    p_esw.add_argument("--vad", choices=vads, default="auto")
+    p_esw.set_defaults(func=_cmd_gt_eval_switch)
 
     return parser
 

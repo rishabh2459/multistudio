@@ -8,6 +8,7 @@ dependencies = [
   "pydantic>=2.8,<3",
   "numpy>=2.0",
   "scipy>=1.13",
+  "onnxruntime>=1.18",
 ]
 
 [project.scripts]

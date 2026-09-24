@@ -22,12 +22,14 @@ jobs:
           enable-cache: true
       - run: uv python install
       - run: uv sync --locked
+      - run: uv run python packaging/scripts/fetch_models.py --only silero-vad
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest -m "not accuracy" --cov=multicam_engine --cov-report=term-missing
         env:
           MULTICAM_REQUIRE_FFMPEG: '1'
+          MULTICAM_REQUIRE_VAD: '1'
       - run: uv run python scripts/export_schemas.py --check
 
   web:

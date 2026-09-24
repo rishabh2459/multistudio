@@ -59,7 +59,7 @@ warn_unreachable = true
 
 # SciPy ships no type information; treat it as untyped (results are cast at the call site).
 [[tool.mypy.overrides]]
-module = ["scipy", "scipy.*"]
+module = ["scipy", "scipy.*", "onnxruntime", "onnxruntime.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

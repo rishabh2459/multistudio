@@ -43,3 +43,23 @@ def write_clip(
     cmd += ["-c:v", "mpeg4", "-q:v", "15", "-t", f"{duration_s}", str(path)]
     subprocess.run(cmd, check=True)
     return path
+
+
+def has_flite(ffmpeg: str) -> bool:
+    """ffmpeg built with libflite (text-to-speech): Ubuntu's ffmpeg has it, Homebrew's not."""
+    out = subprocess.run(
+        [ffmpeg, "-hide_banner", "-filters"], capture_output=True, text=True, check=False
+    ).stdout
+    return " flite " in out
+
+
+def flite_speech(ffmpeg: str, text: str, voice: str, sr: int) -> npt.NDArray[np.float64]:
+    """Real synthetic speech (not noise), so Silero VAD treats it as a voice."""
+    safe = text.replace("'", "").replace(":", "").replace(",", "")
+    raw = subprocess.run(
+        [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+         "-f", "lavfi", "-i", f"flite=text='{safe}':voice={voice}",
+         "-ac", "1", "-ar", str(sr), "-f", "f32le", "pipe:1"],
+        capture_output=True, check=True,
+    ).stdout  # fmt: skip
+    return np.frombuffer(raw, dtype="<f4").astype(np.float64)

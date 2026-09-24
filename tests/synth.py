@@ -118,3 +118,101 @@ def camera_pair(
     # Trimming the clip's start moves every event earlier in the clip by clip_start_s.
     offset0 = offset_s * sr * (1 + k) - clip_start_s * sr
     return ref, SimClip(sig, offset0, drift_ppm, sr)
+
+
+# --------------------------------------------------------------- conversations
+@dataclass(frozen=True)
+class Turn:
+    speaker: int
+    start_s: float
+    end_s: float
+
+
+def conversation_turns(
+    duration_s: float,
+    n_speakers: int = 2,
+    *,
+    seed: int = 0,
+    interjection_prob: float = 0.15,
+    overlap_prob: float = 0.08,
+) -> list[Turn]:
+    """Alternating turns (1.5-10 s) with pauses, short interjections and overlaps."""
+    rng = np.random.default_rng(seed)
+    turns: list[Turn] = []
+    t = 1.0
+    speaker = 0
+    while t < duration_s - 1.0:
+        length = float(rng.uniform(1.5, 10.0))
+        end = min(t + length, duration_s - 0.5)
+        turns.append(Turn(speaker, t, end))
+        listener = (speaker + 1 + int(rng.integers(0, max(1, n_speakers - 1)))) % n_speakers
+        if n_speakers > 1 and rng.random() < interjection_prob and end - t > 4.0:
+            at = float(rng.uniform(t + 1.0, end - 2.0))  # "mm-hmm" from the listener
+            turns.append(Turn(listener, at, at + float(rng.uniform(0.3, 0.7))))
+        if n_speakers > 1 and rng.random() < overlap_prob:
+            turns.append(Turn(listener, end - 1.2, end + 0.3))  # talk over the end
+            t = end + 0.3 + float(rng.uniform(0.2, 0.8))
+            speaker = listener
+            continue
+        t = end + float(rng.uniform(0.2, 1.2))
+        speaker = listener
+    return sorted(turns, key=lambda turn: turn.start_s)
+
+
+def voices(
+    turns: list[Turn], n_speakers: int, duration_s: float, sr: int, seed: int = 0
+) -> list[Audio]:
+    """One dry voice signal per speaker: speech-like sound only during their turns."""
+    n = int(duration_s * sr)
+    out: list[Audio] = []
+    for s in range(n_speakers):
+        base = speech_like(duration_s, sr, seed=seed * 10 + s + 1, pause_ratio=0.15)
+        mask = np.zeros(n)
+        for turn in turns:
+            if turn.speaker == s:
+                a, b = int(turn.start_s * sr), min(n, int(turn.end_s * sr))
+                mask[a:b] = 1.0
+        ramp = np.hanning(int(0.02 * sr) * 2 + 1)
+        mask = np.convolve(mask, ramp / ramp.sum(), mode="same")
+        out.append(base * mask)
+    return out
+
+
+def mic_mix(
+    voices_: list[Audio],
+    own: int | None,
+    *,
+    bleed_db: float = -9.0,
+    gain: float = 1.0,
+    snr_db: float = 35.0,
+    seed: int = 0,
+) -> Audio:
+    """What one camera mic hears: its own person at full level, the others at
+    ``bleed_db``, plus room noise. ``own=None`` = a wide camera (everyone at -3 dB)."""
+    rng = np.random.default_rng(seed)
+    bleed = 10 ** (bleed_db / 20)
+    mix = np.zeros_like(voices_[0])
+    for i, v in enumerate(voices_):
+        mix = mix + v * (1.0 if i == own else (0.7 if own is None else bleed))
+    noise_rms = 0.05 * 10 ** (-snr_db / 20)
+    result: Audio = (mix + rng.standard_normal(len(mix)) * noise_rms) * gain
+    return result
+
+
+def conversation_mics(
+    duration_s: float,
+    sr: int = 8000,
+    *,
+    n_speakers: int = 2,
+    bleed_db: float = -8.0,
+    gains: tuple[float, ...] = (1.0, 0.3, 0.6),
+    seed: int = 3,
+) -> tuple[list[Turn], list[Audio]]:
+    """Turns + one mic signal per speaker camera (each hears everyone, own person loudest)."""
+    turns = conversation_turns(duration_s, n_speakers, seed=seed)
+    vs = voices(turns, n_speakers, duration_s, sr, seed=seed)
+    mics = [
+        mic_mix(vs, i, bleed_db=bleed_db, gain=gains[i % len(gains)], seed=seed + 10 + i)
+        for i in range(n_speakers)
+    ]
+    return turns, mics

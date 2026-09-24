@@ -20,6 +20,10 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | D26 | 2026-09-23 | Sync = coarse GCC-PHAT (1 kHz, whole clip, top-3 candidates) → windowed GCC-PHAT (8 kHz) → robust line fit (RANSAC-style) → second pass reading the clip along the fitted line | Handles partial overlap, drift up to ±500 ppm, noisy windows; drift doesn't smear the peak |
 | D27 | 2026-09-23 | PHAT restricted to 80 Hz–0.95·Nyquist with a magnitude floor | Plain PHAT gave false peaks from DC/hum/roll-off bins common to both recordings |
 | D28 | 2026-09-23 | Audio decoded by ffmpeg to a pipe (`f32le`); cache as `.npy` in the user cache folder | No soundfile/librosa dependency; re-runs skip decoding |
+| D30 | 2026-09-24 | Speaker detection = per-mic loudness relative to that mic's own speech level (P90 while anyone speaks), winner needs a 3 dB lead; talk-over from a 1 s window where 2+ people each hold ≥ 30 % | Camera mics all hear everyone (bleed); relative level calibrates away gain/distance differences |
+| D31 | 2026-09-24 | VAD: Silero v5 ONNX (MIT) at 8 kHz on the sync audio, batched in 30 s blocks with 1 s warm-up; energy VAD fallback when the model is missing | ~1 000 model calls per hour of audio (3 × 1 h mics ≈ 11 s); dev works before `make fetch-models` |
+| D32 | 2026-09-24 | Switching solved globally with dynamic programming (Viterbi over camera × time-in-shot) instead of a frame-by-frame state machine | Exact min-shot guarantee, cut cost = hysteresis/interruption tolerance, cuts placed just before the next speaker; 1 h plans in < 0.5 s |
+| D33 | 2026-09-24 | Scoring: speech time on the right camera; during talk-over any active speaker or the wide counts | Matches the Phase 2 target in TEST_FOOTAGE.md §6 |
 | D29 | 2026-09-23 | Continue Phase 1 before test footage exists, using synthetic signals + generated video files; phase is marked done only after the real-footage benchmark passes | Unblocks development; accuracy on real devices still has to be proven |
 
 ## Dependencies added
@@ -34,3 +38,4 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | json-schema-to-typescript | MIT | dev only | Type generation |
 | numpy | BSD-3 | engine | Signal arrays (Phase 1) |
 | scipy | BSD-3 | engine | FFT, resampling, filters (Phase 1) |
+| onnxruntime | MIT | engine | Runs the Silero VAD model (Phase 2) |

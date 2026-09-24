@@ -478,14 +478,15 @@ Total for the desktop product: **~4–5 months full-time**.
 **Goal:** Make cutting decisions like a human director.
 
 **Tasks**
-- [ ] `analysis/vad`: Silero VAD via ONNX Runtime, per track
-- [ ] `analysis/energy`: per-window RMS in dB, per-mic noise-floor calibration
-- [ ] `analysis/bleed`: relative-energy scoring so a faint voice on another mic doesn't win
-- [ ] `decide/switch`: active-speaker timeline → CutList with min shot length, hysteresis, interruption tolerance
-- [ ] Wide-shot rules: cross-talk or silence → wide camera (if assigned)
-- [ ] Presets: calm / balanced / dynamic (parameter sets, stored in project)
-- [ ] CLI: `multicam cutlist --sync sync.json --preset balanced`
-- [ ] Accuracy script: compare CutList vs ground-truth speaker annotations
+- [x] `analysis/vad`: Silero VAD via ONNX Runtime, per track
+- [x] `analysis/energy`: per-window RMS in dB, per-mic noise-floor calibration
+- [x] `analysis/bleed`: relative-energy scoring so a faint voice on another mic doesn't win (in `analysis/speakers`)
+- [x] `decide/switch`: active-speaker timeline → CutList with min shot length, hysteresis, interruption tolerance
+- [x] Wide-shot rules: cross-talk or silence → wide camera (if assigned)
+- [x] Presets: calm / balanced / dynamic (parameter sets, stored in project)
+- [x] CLI: `multicam cutlist --sync sync.json --preset balanced`
+- [x] Accuracy script: compare CutList vs ground-truth speaker annotations (`multicam gt eval-switch`)
+- [ ] Accuracy benchmark on real footage (T1, T2, T5): `make test-accuracy`
 
 **Done when:** Speaker accuracy on test library meets the target set in Phase 0 (e.g. ≥ 95% of speech time on the correct camera), with no cuts shorter than the minimum shot length.
 
@@ -751,8 +752,8 @@ Record every significant decision here (or in `docs/DECISIONS.md`). **D14 onward
 | Phase | Status | Started | Completed | Notes |
 |---|---|---|---|---|
 | 0 — Foundation | 🔄 In progress | 2026-09-22 | | Scaffold done; test footage pending |
-| 1 — Sync engine | 🔄 In progress | 2026-09-23 | | Code + synthetic tests done (1 h clip: < 0.3 ms error, ~5 s). Real-footage benchmark pending (D29) |
-| 2 — Speaker detection + switch | ⬜ Not started | | | Reuse existing `switch.py` if available |
+| 1 — Sync engine | 🔄 In progress | 2026-09-23 | | Code merged (1 h clip: < 0.3 ms error, ~5 s). Real-footage benchmark pending (D29) |
+| 2 — Speaker detection + switch | 🔄 In progress | 2026-09-24 | | Code + synthetic tests done (balanced: 97 % on synthetic interview, 1 h analysed in ~12 s). Real-footage benchmark pending (D29) |
 | 3 — Render engine | ⬜ Not started | | | |
 | 4 — Backend | ⬜ Not started | | | |
 | 5 — Next.js UI v1 | ⬜ Not started | | | |

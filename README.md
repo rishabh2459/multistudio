@@ -9,7 +9,7 @@ Everything runs on your own machine using free, open-source components.
 🧾 **Decisions:** [`docs/DECISIONS.md`](docs/DECISIONS.md) ·
 🎥 **Test footage:** [`docs/TEST_FOOTAGE.md`](docs/TEST_FOOTAGE.md)
 
-**Current phase:** 1 — Sync engine (code done; real-footage accuracy check pending)
+**Current phase:** 2 — Speaker detection + switching (code done; real-footage accuracy checks for Phases 1–2 pending)
 
 ---
 
@@ -63,6 +63,8 @@ Commit `uv.lock`, `pnpm-lock.yaml`, `schemas/` and `packages/types/src/generated
 | `make fetch-models` | Download pinned model files |
 | `uv run multicam probe cam1.mp4` | Frame rate, VFR, duration, audio of a file |
 | `uv run multicam sync cam1.mp4 cam2.mp4 --out sync.json` | Sync clips by audio |
+| `uv run multicam cutlist --sync sync.json --label cam1.mp4=Host --wide wide.mp4` | Auto-edit: who speaks → camera cuts (writes cutlist.json + project.json) |
+| `uv run multicam gt eval-switch samples/T2` | Score speaker accuracy against ground truth |
 | `uv run multicam --help` | Engine CLI |
 
 ## Repository layout
