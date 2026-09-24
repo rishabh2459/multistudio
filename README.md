@@ -9,7 +9,7 @@ Everything runs on your own machine using free, open-source components.
 🧾 **Decisions:** [`docs/DECISIONS.md`](docs/DECISIONS.md) ·
 🎥 **Test footage:** [`docs/TEST_FOOTAGE.md`](docs/TEST_FOOTAGE.md)
 
-**Current phase:** 2 — Speaker detection + switching (code done; real-footage accuracy checks for Phases 1–2 pending)
+**Current phase:** 3 — Render engine (code done; real-footage checks for Phases 1–3 pending)
 
 ---
 
@@ -65,6 +65,9 @@ Commit `uv.lock`, `pnpm-lock.yaml`, `schemas/` and `packages/types/src/generated
 | `uv run multicam sync cam1.mp4 cam2.mp4 --out sync.json` | Sync clips by audio |
 | `uv run multicam cutlist --sync sync.json --label cam1.mp4=Host --wide wide.mp4` | Auto-edit: who speaks → camera cuts (writes cutlist.json + project.json) |
 | `uv run multicam gt eval-switch samples/T2` | Score speaker accuracy against ground truth |
+| `uv run multicam render --project project.json --cutlist cutlist.json --out episode.mp4` | Render the final video (`--preset youtube-1080p/youtube-4k/master/draft`) |
+| `uv run multicam encoders` | Show which hardware/software encoders work on this machine |
+| `uv run multicam proxy cam1.mp4 cam2.mp4` | Low-res proxies for the editor |
 | `uv run multicam --help` | Engine CLI |
 
 ## Repository layout

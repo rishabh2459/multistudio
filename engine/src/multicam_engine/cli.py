@@ -11,12 +11,16 @@ Commands:
     multicam gt eval-sync RECORDING_DIR...          (Phase 1)
     multicam cutlist --sync sync.json [--wide F] [--label F=NAME] [--preset P]  (Phase 2)
     multicam gt eval-switch RECORDING_DIR... [--preset P]                     (Phase 2)
+    multicam render --project project.json --cutlist cutlist.json --out ep.mp4  (Phase 3)
+    multicam encoders                                                         (Phase 3)
+    multicam proxy FILE... [--out-dir DIR]                                    (Phase 3)
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import threading
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -33,11 +37,21 @@ from multicam_engine.benchmark.ground_truth import GroundTruth
 from multicam_engine.benchmark.switch_accuracy import TARGET_ACCURACY, evaluate_switching
 from multicam_engine.benchmark.sync_accuracy import evaluate_recording
 from multicam_engine.media.audio import SYNC_SAMPLE_RATE, default_cache_dir
-from multicam_engine.media.ffmpeg import FFmpegNotFoundError
+from multicam_engine.media.ffmpeg import FFmpegError, FFmpegNotFoundError
 from multicam_engine.media.probe import ProbeError, probe
 from multicam_engine.models import CutList, Project
+from multicam_engine.models.cutlist import AudioConfig, AudioMode
 from multicam_engine.models.project import ClipRole, Preset
 from multicam_engine.pipeline import auto_edit, build_project
+from multicam_engine.render import (
+    PRESETS,
+    RenderCancelledError,
+    RenderPlanError,
+    RenderProgress,
+    available_encoders,
+    make_proxy,
+    render,
+)
 from multicam_engine.sync.engine import SyncReport, sync_files
 
 _VALIDATE_KINDS: dict[str, type[BaseModel]] = {
@@ -283,6 +297,94 @@ def _cmd_gt_eval_switch(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def _fmt_time(seconds: float | None) -> str:
+    if seconds is None:
+        return "--:--"
+    m, s = divmod(int(seconds), 60)
+    return f"{m // 60}:{m % 60:02d}:{s:02d}" if m >= 60 else f"{m:02d}:{s:02d}"
+
+
+def _cmd_render(args: argparse.Namespace) -> int:
+    try:
+        project = Project.model_validate_json(Path(args.project).read_text(encoding="utf-8"))
+        cutlist = CutList.model_validate_json(Path(args.cutlist).read_text(encoding="utf-8"))
+        if args.audio_from:
+            name = Path(args.audio_from).name
+            match = [c for c in project.clips if Path(c.path).name == name]
+            if not match:
+                return _err(f"--audio-from: no clip named {name} in the project")
+            cutlist.audio = AudioConfig(mode=AudioMode.SINGLE, single_clip_id=match[0].id)
+    except (FileNotFoundError, ValidationError) as exc:
+        return _err(str(exc))
+
+    cancel = threading.Event()
+
+    def show(p: RenderProgress) -> None:
+        bar = "#" * int(p.fraction * 30)
+        print(
+            f"\r  [{bar:<30}] {p.fraction:6.1%}  {p.stage:<5}  ETA {_fmt_time(p.eta_s)}",
+            end="",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    try:
+        result = render(
+            project,
+            cutlist,
+            args.out,
+            preset=args.preset,
+            encoder=args.encoder,
+            on_progress=show,
+            cancel=cancel,
+            keep_temp=args.keep_temp,
+        )
+    except KeyboardInterrupt:
+        cancel.set()
+        print(file=sys.stderr)
+        return _err("cancelled")
+    except RenderCancelledError:
+        print(file=sys.stderr)
+        return _err("cancelled")
+    except (RenderPlanError, ProbeError, FFmpegError, FFmpegNotFoundError, ValueError) as exc:
+        print(file=sys.stderr)
+        return _err(str(exc))
+    print(file=sys.stderr)
+    for w in result.warnings:
+        print(f"warning: {w}", file=sys.stderr)
+    print(
+        f"wrote {result.output}: {result.frames} frames ({_fmt_time(result.duration_s)}), "
+        f"{result.encoder}, rendered in {_fmt_time(result.elapsed_s)}"
+    )
+    return 0
+
+
+def _cmd_encoders(_args: argparse.Namespace) -> int:
+    try:
+        h264, hevc = available_encoders("h264"), available_encoders("hevc")
+    except FFmpegNotFoundError as exc:
+        return _err(str(exc))
+    print("working encoders (preferred first):")
+    print(f"  H.264: {', '.join(h264) or 'none'}")
+    print(f"  HEVC:  {', '.join(hevc) or 'none'}")
+    print("output presets:")
+    for p in PRESETS.values():
+        print(f"  {p.name:<14} {p.description}")
+    return 0
+
+
+def _cmd_proxy(args: argparse.Namespace) -> int:
+    status = 0
+    for file in args.files:
+        try:
+            out = make_proxy(file, Path(args.out_dir))
+        except (FileNotFoundError, ProbeError, FFmpegError, FFmpegNotFoundError) as exc:
+            status = _err(f"{file}: {exc}")
+            continue
+        print(f"{file} -> {out}")
+    return status
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="multicam", description="Multicam Studio engine CLI")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -320,6 +422,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_cut.add_argument("--out", default="cutlist.json")
     p_cut.add_argument("--project-out", help="default: project.json next to --out")
     p_cut.set_defaults(func=_cmd_cutlist)
+
+    p_ren = sub.add_parser("render", help="render the final video from a cutlist")
+    p_ren.add_argument("--project", required=True, help="project.json from `multicam cutlist`")
+    p_ren.add_argument("--cutlist", required=True)
+    p_ren.add_argument("--out", required=True, help="output video file (.mp4 / .mov / .mkv)")
+    p_ren.add_argument("--preset", choices=sorted(PRESETS), default="youtube-1080p")
+    p_ren.add_argument("--encoder", default="auto", help="auto, or e.g. h264_videotoolbox")
+    p_ren.add_argument("--audio-from", help="use only this clip's audio (default: mix)")
+    p_ren.add_argument("--keep-temp", action="store_true", help="keep intermediate files")
+    p_ren.set_defaults(func=_cmd_render)
+
+    p_enc = sub.add_parser("encoders", help="list working video encoders and output presets")
+    p_enc.set_defaults(func=_cmd_encoders)
+
+    p_prx = sub.add_parser("proxy", help="make low-res proxies for the editor")
+    p_prx.add_argument("files", nargs="+")
+    p_prx.add_argument("--out-dir", default="proxies")
+    p_prx.set_defaults(func=_cmd_proxy)
 
     p_gt = sub.add_parser("gt", help="ground-truth tools for test footage")
     gt_sub = p_gt.add_subparsers(dest="gt_command", required=True)

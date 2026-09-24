@@ -497,15 +497,16 @@ Total for the desktop product: **~4–5 months full-time**.
 **Goal:** Broadcast-quality output from a CutList.
 
 **Tasks**
-- [ ] `render/graph`: build a single ffmpeg `filter_complex` from the CutList
-- [ ] Apply sync offsets + drift correction per clip in the graph
-- [ ] Continuous master audio (mix or chosen track, per-clip gain)
-- [ ] Frame snapping; VFR → CFR output
-- [ ] Encoder selection: VideoToolbox / Media Foundation / NVENC / QSV / AMF, openh264 fallback
-- [ ] Proxy generation (low-res, all-intra-friendly) for the editor
-- [ ] Output presets: YouTube 1080p, YouTube 4K, high-quality master
-- [ ] Progress parsing (percent + ETA) and cancellation
-- [ ] Very long timelines: chunked render + lossless join if graph gets too large
+- [x] `render/graph`: build a single ffmpeg `filter_complex` from the CutList (per chunk)
+- [x] Apply sync offsets + drift correction per clip in the graph
+- [x] Continuous master audio (mix or chosen track, per-clip gain)
+- [x] Frame snapping; VFR → CFR output
+- [x] Encoder selection: VideoToolbox / Media Foundation / NVENC / QSV / AMF, openh264 fallback
+- [x] Proxy generation (low-res, all-intra-friendly) for the editor
+- [x] Output presets: YouTube 1080p, YouTube 4K, high-quality master (+ draft)
+- [x] Progress parsing (percent + ETA) and cancellation
+- [x] Very long timelines: chunked render + lossless join if graph gets too large
+- [ ] Real-footage check: 60-min 3-camera episode on your Mac (VideoToolbox), watch cut points
 
 **Done when:** A 60-minute 3-camera episode renders with every cut on the exact frame and no audible artifacts at cut points.
 
@@ -754,7 +755,7 @@ Record every significant decision here (or in `docs/DECISIONS.md`). **D14 onward
 | 0 — Foundation | 🔄 In progress | 2026-09-22 | | Scaffold done; test footage pending |
 | 1 — Sync engine | 🔄 In progress | 2026-09-23 | | Code merged (1 h clip: < 0.3 ms error, ~5 s). Real-footage benchmark pending (D29) |
 | 2 — Speaker detection + switch | 🔄 In progress | 2026-09-24 | | Code + synthetic tests done (balanced: 97 % on synthetic interview, 1 h analysed in ~12 s). Real-footage benchmark pending (D29) |
-| 3 — Render engine | ⬜ Not started | | | |
+| 3 — Render engine | 🔄 In progress | 2026-09-24 | | Code + tests done: frame-exact on 193 cuts / 3 cams / ±drift (every frame verified), A/V sync < 1 ms. Real 60-min render on Mac pending |
 | 4 — Backend | ⬜ Not started | | | |
 | 5 — Next.js UI v1 | ⬜ Not started | | | |
 | 6 — Electron desktop | ⬜ Not started | | | |

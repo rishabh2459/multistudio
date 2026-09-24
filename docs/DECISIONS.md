@@ -24,6 +24,11 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | D31 | 2026-09-24 | VAD: Silero v5 ONNX (MIT) at 8 kHz on the sync audio, batched in 30 s blocks with 1 s warm-up; energy VAD fallback when the model is missing | ~1 000 model calls per hour of audio (3 × 1 h mics ≈ 11 s); dev works before `make fetch-models` |
 | D32 | 2026-09-24 | Switching solved globally with dynamic programming (Viterbi over camera × time-in-shot) instead of a frame-by-frame state machine | Exact min-shot guarantee, cut cost = hysteresis/interruption tolerance, cuts placed just before the next speaker; 1 h plans in < 0.5 s |
 | D33 | 2026-09-24 | Scoring: speech time on the right camera; during talk-over any active speaker or the wide counts | Matches the Phase 2 target in TEST_FOOTAGE.md §6 |
+| D34 | 2026-09-24 | One timing formula for picture and sound: `pts = audio_start + t·(1+drift) + offset`; video retimed with `setpts`, then `fps` (round=near) to CFR, exact frame counts enforced by trim + clone-pad + trim | Every cut on its exact frame, VFR handled, drift corrected, A/V locked |
+| D35 | 2026-09-24 | Render in chunks (≤ 5 min / 24 cuts), each one ffmpeg `filter_complex`; join with the concat demuxer **without re-encoding** | Small graphs for 3-hour/500-cut episodes; join is lossless; verified frame-exact |
+| D36 | 2026-09-24 | Master audio mixed in Python (streamed, 48 kHz, Catmull-Rom resampling for drift), piped into the AAC encoder | Sample-exact, no pitch/tempo filters, no clicks at cuts (continuous), no giant temp WAV |
+| D37 | 2026-09-24 | Encoder order: VideoToolbox → NVENC → QSV → AMF → Media Foundation → OpenH264 → (libx264 dev only) → mpeg4; each candidate test-encoded before use | Listed ≠ working (e.g. NVENC without GPU); LGPL-friendly; tests run anywhere |
+| D38 | 2026-09-24 | Uncovered moments (camera not recording) render as black, with a warning | Never shows wrong/frozen content; user sees it and fixes the cut |
 | D29 | 2026-09-23 | Continue Phase 1 before test footage exists, using synthetic signals + generated video files; phase is marked done only after the real-footage benchmark passes | Unblocks development; accuracy on real devices still has to be proven |
 
 ## Dependencies added

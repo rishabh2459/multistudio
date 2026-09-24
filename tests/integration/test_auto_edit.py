@@ -10,6 +10,7 @@ from multicam_engine.analysis.vad import SileroVad
 from multicam_engine.benchmark.ground_truth import GroundTruth, GTClip, SpeechTurn
 from multicam_engine.benchmark.switch_accuracy import evaluate_switching, score_switching
 from multicam_engine.cli import main
+from multicam_engine.media.probe import probe
 from multicam_engine.models import ClipRole, CutList, Project
 from multicam_engine.pipeline import auto_edit, build_project
 from multicam_engine.sync import sync_files
@@ -104,9 +105,9 @@ def test_pipeline_with_silero_on_real_speech(
     assert acc.short_shots == 0
 
 
-def _synthetic_recording(ffmpeg: str, folder: Path) -> list[Turn]:
+def _synthetic_recording(ffmpeg: str, folder: Path, duration_s: float = 150) -> list[Turn]:
     folder.mkdir(parents=True, exist_ok=True)
-    turns, mics = conversation_mics(150, SR, gains=(1.0, 0.35), seed=12)
+    turns, mics = conversation_mics(duration_s, SR, gains=(1.0, 0.35), seed=12)
     write_clip(ffmpeg, folder / "cam1.mp4", mics[0], SR)
     write_clip(ffmpeg, folder / "cam2.mp4", np.concatenate([np.zeros(SR), mics[1]]), SR)
     wide = mics[0] * 0.5 + mics[1] * 1.2
@@ -155,3 +156,20 @@ def test_eval_switch_on_synthetic_recording(ffmpeg: str, tmp_path: Path) -> None
     assert acc.accuracy >= 0.95, acc
     assert acc.short_shots == 0 and acc.passed
     assert main(["gt", "eval-switch", str(rec), "--vad", "energy"]) == 0
+
+
+def test_full_pipeline_sync_cutlist_render(ffmpeg: str, tmp_path: Path) -> None:
+    """Phase 1 -> 2 -> 3 through the CLI, exactly as a user would run it."""
+    _synthetic_recording(ffmpeg, tmp_path, duration_s=45)
+    files = [str(tmp_path / f) for f in ("cam1.mp4", "cam2.mp4", "wide.mp4")]
+    assert main(["sync", *files, "--out", str(tmp_path / "sync.json"), "--no-cache"]) == 0
+    assert main(["cutlist", "--sync", str(tmp_path / "sync.json"), "--wide", "wide.mp4",
+                 "--vad", "energy", "--out", str(tmp_path / "cutlist.json")]) == 0  # fmt: skip
+    out = tmp_path / "episode.mp4"
+    assert main(["render", "--project", str(tmp_path / "project.json"),
+                 "--cutlist", str(tmp_path / "cutlist.json"), "--out", str(out),
+                 "--preset", "draft", "--audio-from", "cam1.mp4"]) == 0  # fmt: skip
+    cutlist = CutList.model_validate_json((tmp_path / "cutlist.json").read_text(encoding="utf-8"))
+    info = probe(out)
+    assert info.media.duration_frames == cutlist.duration_frames
+    assert info.media.audio_codec == "aac"
