@@ -93,13 +93,6 @@ def create_app(settings: Settings | None = None, queue: JobQueue | None = None) 
         description="Local backend: projects, clips, jobs (sync, auto-edit, render).",
         lifespan=lifespan,
     )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=list(settings.cors_origins),
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     if settings.token:
         expected = settings.token
 
@@ -113,6 +106,15 @@ def create_app(settings: Settings | None = None, queue: JobQueue | None = None) 
                 if not hmac.compare_digest(given, expected):
                     return JSONResponse({"detail": "missing or wrong API token"}, status_code=401)
             return await call_next(request)
+
+    # Added last = outermost, so a 401 from the token check still carries CORS
+    # headers and the browser UI can show "wrong token" instead of "unreachable".
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_origins),
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     for module in (system, projects, clips, cutlists, jobs, exports):
         app.include_router(module.router)

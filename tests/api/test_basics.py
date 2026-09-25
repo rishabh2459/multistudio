@@ -43,6 +43,17 @@ def test_token_protects_the_api(tmp_path: Path) -> None:
             client.get("/api/projects", headers={"X-Multicam-Token": "s3cret"}).status_code == 200
         )
         assert client.get("/api/projects", params={"token": "s3cret"}).status_code == 200
+        # The browser UI must be able to read the 401 (CORS headers present).
+        origin = {"Origin": "http://localhost:3000"}
+        denied = client.get("/api/projects", headers=origin)
+        assert denied.status_code == 401
+        assert denied.headers["access-control-allow-origin"] == "http://localhost:3000"
+        preflight = client.options(
+            "/api/projects",
+            headers={**origin, "Access-Control-Request-Method": "PATCH",
+                     "Access-Control-Request-Headers": "x-multicam-token"},
+        )  # fmt: skip
+        assert preflight.status_code == 200
 
 
 def test_project_crud(api: TestClient, settings: Settings) -> None:

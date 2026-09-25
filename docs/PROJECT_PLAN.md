@@ -536,13 +536,13 @@ Total for the desktop product: **~4–5 months full-time**.
 **Goal:** First usable interface.
 
 **Tasks**
-- [ ] Next.js static-export setup, Tailwind, shadcn/ui, design tokens, dark/light theme
-- [ ] Screens: Dashboard → New Project → Clip Setup → Processing → Result
-- [ ] Clip setup: assign speaker names, mark wide camera, choose preset
-- [ ] Live progress via SSE; sync confidence warnings
-- [ ] Result preview player + export options
-- [ ] Settings: output folder, encoder, default preset
-- [ ] Vitest component tests; Playwright happy-path test
+- [x] Next.js static-export setup, Tailwind v4, shadcn-style components, design tokens, dark/light theme (D45, D47)
+- [x] Screens: Dashboard → New Project → Clip Setup → Processing → Result (`/project/?id=` steps, D46)
+- [x] Clip setup: assign speaker names, mark wide camera, choose preset (+ reference camera, relink, remove)
+- [x] Live progress via SSE (polling fallback); sync confidence warnings; cancel / retry
+- [x] Result preview player + export options (quality, encoder, audio source, output folder)
+- [x] Settings: output folder, encoder, default preset, theme, engine address/token
+- [x] Vitest component tests; Playwright happy-path test (`pnpm --filter @multicam/web e2e`)
 
 **Done when:** The full flow works end-to-end in a browser against the local API.
 
@@ -757,7 +757,7 @@ Record every significant decision here (or in `docs/DECISIONS.md`). **D14 onward
 | 2 — Speaker detection + switch | 🔄 In progress | 2026-09-24 | | Code + synthetic tests done (balanced: 97 % on synthetic interview, 1 h analysed in ~12 s). Real-footage benchmark pending (D29) |
 | 3 — Render engine | 🔄 In progress | 2026-09-24 | | Code + tests done: frame-exact on 193 cuts / 3 cams / ±drift (every frame verified), A/V sync < 1 ms. Real 60-min render on Mac pending |
 | 4 — Backend | ✅ Done (code) | 2026-09-25 | 2026-09-25 | "Done when" met by `tests/api/test_pipeline.py` + `scripts/api_demo.py` against a real server. Engine accuracy still pending real footage (Phases 1–3) |
-| 5 — Next.js UI v1 | ⬜ Not started | | | |
+| 5 — Next.js UI v1 | 🔄 In progress | 2026-09-25 | | Code done; Playwright flow passes against the real API (synthetic clips). To verify on the Mac: `pnpm install`, build, Vitest, e2e |
 | 6 — Electron desktop | ⬜ Not started | | | |
 | 7 — Timeline editor + export | ⬜ Not started | | | |
 | 8 — Reframe | ⬜ Not started | | | |

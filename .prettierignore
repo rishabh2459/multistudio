@@ -7,3 +7,7 @@ packages/types/src/generated
 samples
 packaging/models
 *.md
+apps/web/next-env.d.ts
+apps/web/.e2e
+apps/web/playwright-report
+apps/web/test-results

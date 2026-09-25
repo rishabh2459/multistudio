@@ -1,7 +1,6 @@
 /* eslint-disable */
 /**
- * AUTO-GENERATED from schemas/multicam.schema.json — do not edit by hand.
- * Source of truth: engine/src/multicam_engine/models (Python).
+ * AUTO-GENERATED from schemas/multicam.schema.json (engine/src/multicam_engine/models) — do not edit by hand.
  * Regenerate with: make schemas
  */
 

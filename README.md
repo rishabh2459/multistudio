@@ -70,6 +70,11 @@ Commit `uv.lock`, `pnpm-lock.yaml`, `schemas/` and `packages/types/src/generated
 | `uv run multicam proxy cam1.mp4 cam2.mp4` | Low-res proxies for the editor |
 | `uv run multicam-api` | Start the local API on http://127.0.0.1:8765 (docs at `/docs`) |
 | `uv run python scripts/api_demo.py cam1.mp4 cam2.mp4` | Whole pipeline through the API (server must be running) |
+| `pnpm --filter @multicam/web dev` | The UI on http://localhost:3000 (start `uv run multicam-api` first) |
+| `pnpm --filter @multicam/web build` | Static UI build in `apps/web/out/` (loaded by the desktop app) |
+| `pnpm --filter @multicam/web test` | UI unit/component tests (Vitest) |
+| `pnpm --filter @multicam/web e2e` | Full UI flow in Chromium against a real API (Playwright) |
+| `uv run python scripts/make_demo_media.py` | Synthetic 3-camera recording in `samples/demo/` to try the app |
 | `uv run multicam --help` | Engine CLI |
 
 ## Repository layout
