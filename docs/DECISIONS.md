@@ -29,6 +29,12 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | D36 | 2026-09-24 | Master audio mixed in Python (streamed, 48 kHz, Catmull-Rom resampling for drift), piped into the AAC encoder | Sample-exact, no pitch/tempo filters, no clicks at cuts (continuous), no giant temp WAV |
 | D37 | 2026-09-24 | Encoder order: VideoToolbox → NVENC → QSV → AMF → Media Foundation → OpenH264 → (libx264 dev only) → mpeg4; each candidate test-encoded before use | Listed ≠ working (e.g. NVENC without GPU); LGPL-friendly; tests run anywhere |
 | D38 | 2026-09-24 | Uncovered moments (camera not recording) render as black, with a warning | Never shows wrong/frozen content; user sees it and fixes the cut |
+| D39 | 2026-09-25 | Backend = `apps/api` uv workspace member (`multicam_api`, src layout); plan's `infra/local` lives in `multicam_api/infra` | One Python package per app; importable by tests and the future PyInstaller build |
+| D40 | 2026-09-25 | Engine objects stored as JSON (their Pydantic dumps) in SQLite rows; cutlists versioned (every save = new row) | Engine stays the single validator; free undo history for Phase 7 |
+| D41 | 2026-09-25 | Huey (SQLite storage) runs its worker threads inside the API process, signal handlers disabled; the DB row is the job's source of truth, the queue carries only ids; on startup running→failed, queued→resubmitted | Single-process sidecar; survives crashes cleanly |
+| D42 | 2026-09-25 | Per-step input hashes (`step_cache` table): unchanged sync/analysis/decision/render are skipped; `analyze` and `decide` are separate so a new preset re-cuts from the stored analysis (`.npz`) | Instant re-runs; changing preset takes < 1 s |
+| D43 | 2026-09-25 | API listens on 127.0.0.1 only; optional per-launch token (`X-Multicam-Token` or `?token=` for SSE) | Stops other local programs / web pages from driving the API |
+| D44 | 2026-09-25 | Phase 4 publishes `schemas/openapi.json` (CI-checked); the TypeScript client is generated with openapi-typescript when the UI starts (Phase 5) | Client lives next to its only consumer; contract is fixed now |
 | D29 | 2026-09-23 | Continue Phase 1 before test footage exists, using synthetic signals + generated video files; phase is marked done only after the real-footage benchmark passes | Unblocks development; accuracy on real devices still has to be proven |
 
 ## Dependencies added
@@ -44,3 +50,9 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | numpy | BSD-3 | engine | Signal arrays (Phase 1) |
 | scipy | BSD-3 | engine | FFT, resampling, filters (Phase 1) |
 | onnxruntime | MIT | engine | Runs the Silero VAD model (Phase 2) |
+| fastapi, starlette | MIT / BSD-3 | api | HTTP API (Phase 4) |
+| uvicorn | BSD-3 | api | ASGI server |
+| sqlalchemy, alembic | MIT | api | Database + migrations |
+| huey | MIT | api | Job queue (SQLite storage) |
+| sse-starlette | BSD-3 | api | Server-Sent Events |
+| httpx | BSD-3 | dev only | API tests + demo script |

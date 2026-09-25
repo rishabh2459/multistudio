@@ -517,15 +517,15 @@ Total for the desktop product: **~4–5 months full-time**.
 **Goal:** Turn the engine into a controllable local service.
 
 **Tasks**
-- [ ] FastAPI app; routers for projects, clips, jobs, exports, system info
-- [ ] SQLAlchemy models + Alembic migrations on SQLite
-- [ ] `StorageBackend`, `JobQueue` interfaces with local implementations
-- [ ] Huey tasks: probe, sync, analyze, decide, render, export
-- [ ] SSE endpoint for live job progress; cancel + retry
-- [ ] Reference files by path; detect moved/missing files gracefully
-- [ ] Caching: skip steps whose inputs haven't changed
-- [ ] OpenAPI schema → generated TS client
-- [ ] API tests with pytest + httpx
+- [x] FastAPI app; routers for projects, clips, jobs, exports, system info (+ cutlist versions)
+- [x] SQLAlchemy models + Alembic migrations on SQLite
+- [x] `StorageBackend`, `JobQueue` interfaces with local implementations
+- [x] Huey tasks: probe, sync, analyze, decide, render (+ `auto` = sync→analyze→decide); NLE export moves to Phase 7 with its formats
+- [x] SSE endpoint for live job progress; cancel + retry
+- [x] Reference files by path; detect moved/missing files gracefully (relink via PATCH)
+- [x] Caching: skip steps whose inputs haven't changed
+- [x] OpenAPI schema (`schemas/openapi.json`, CI-checked) → TS client generated in Phase 5 (D44)
+- [x] API tests with pytest + httpx
 
 **Done when:** A script can create a project, add clips, run the full pipeline, and get the final video — entirely via the API.
 
@@ -756,7 +756,7 @@ Record every significant decision here (or in `docs/DECISIONS.md`). **D14 onward
 | 1 — Sync engine | 🔄 In progress | 2026-09-23 | | Code merged (1 h clip: < 0.3 ms error, ~5 s). Real-footage benchmark pending (D29) |
 | 2 — Speaker detection + switch | 🔄 In progress | 2026-09-24 | | Code + synthetic tests done (balanced: 97 % on synthetic interview, 1 h analysed in ~12 s). Real-footage benchmark pending (D29) |
 | 3 — Render engine | 🔄 In progress | 2026-09-24 | | Code + tests done: frame-exact on 193 cuts / 3 cams / ±drift (every frame verified), A/V sync < 1 ms. Real 60-min render on Mac pending |
-| 4 — Backend | ⬜ Not started | | | |
+| 4 — Backend | ✅ Done (code) | 2026-09-25 | 2026-09-25 | "Done when" met by `tests/api/test_pipeline.py` + `scripts/api_demo.py` against a real server. Engine accuracy still pending real footage (Phases 1–3) |
 | 5 — Next.js UI v1 | ⬜ Not started | | | |
 | 6 — Electron desktop | ⬜ Not started | | | |
 | 7 — Timeline editor + export | ⬜ Not started | | | |

@@ -8,8 +8,10 @@ result.cutlist                                       # -> render (Phase 3)
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from uuid import UUID
 
 import numpy as np
 
@@ -96,23 +98,51 @@ class AutoEditResult:
     warnings: list[str] = field(default_factory=list)
 
 
-def auto_edit(
-    project: Project,
-    *,
-    vad: Vad | VadKind = "auto",
-    switch: SwitchParams | None = None,
-    detect: DetectParams | None = None,
-    cache_dir: Path | None = None,
-    sample_rate: int = SYNC_SAMPLE_RATE,
-) -> AutoEditResult:
-    """Detect who speaks when and build the CutList for ``project``."""
-    warnings: list[str] = []
-    if isinstance(vad, str):
-        vad, note = load_vad(vad)
-        if note:
-            warnings.append(note)
-    params = switch or params_for(project.preset)
+@dataclass(frozen=True)
+class Analysis:
+    """Who speaks when, for a project (the expensive half of auto-editing)."""
 
+    activity: SpeakerActivity
+    speaker_clip_ids: list[UUID]
+    vad_backend: str
+    warnings: list[str] = field(default_factory=list)
+
+    def save(self, path: Path) -> None:
+        """Store as ``.npz`` so a new preset can re-cut without re-analysing."""
+        a = self.activity
+        with path.open("wb") as fh:
+            np.savez_compressed(
+                fh,
+                labels=a.labels,
+                margin_db=a.margin_db,
+                available=a.available,
+                speakers=np.array(a.speakers, dtype=str),
+                speaker_clip_ids=np.array([str(c) for c in self.speaker_clip_ids], dtype=str),
+                frame_rate=np.array(a.frame_rate),
+                vad_backend=np.array(self.vad_backend),
+                warnings=np.array(self.warnings, dtype=str),
+            )
+
+    @classmethod
+    def load(cls, path: Path) -> Analysis:
+        with np.load(path, allow_pickle=False) as data:
+            activity = SpeakerActivity(
+                labels=data["labels"].astype(np.int64),
+                speakers=tuple(str(s) for s in data["speakers"]),
+                margin_db=data["margin_db"].astype(np.float64),
+                available=data["available"].astype(bool),
+                frame_rate=int(data["frame_rate"]),
+            )
+            return cls(
+                activity=activity,
+                speaker_clip_ids=[UUID(str(c)) for c in data["speaker_clip_ids"]],
+                vad_backend=str(data["vad_backend"]),
+                warnings=[str(w) for w in data["warnings"]],
+            )
+
+
+def _timeline_frames(project: Project) -> tuple[int, int]:
+    """(output frames, analysis frames) of the reference clip."""
     if project.reference_clip_id is None:
         raise ValueError("project has no reference clip (run sync first)")
     ref = project.clip(project.reference_clip_id)
@@ -120,15 +150,31 @@ def auto_edit(
         raise ValueError("reference clip has no media info (probe it first)")
     duration_frames = ref.media.duration_frames
     fps = project.output.fps
-    n = int(np.ceil(duration_frames * FEATURE_RATE * fps.den / fps.num))
+    return duration_frames, int(np.ceil(duration_frames * FEATURE_RATE * fps.den / fps.num))
 
+
+def analyze_project(
+    project: Project,
+    *,
+    vad: Vad | VadKind = "auto",
+    detect: DetectParams | None = None,
+    cache_dir: Path | None = None,
+    sample_rate: int = SYNC_SAMPLE_RATE,
+    on_progress: Callable[[float], None] | None = None,
+) -> Analysis:
+    """Measure loudness + speech on every speaker mic and label who speaks when."""
+    warnings: list[str] = []
+    if isinstance(vad, str):
+        vad, note = load_vad(vad)
+        if note:
+            warnings.append(note)
+    _, n = _timeline_frames(project)
     speakers = [c for c in project.clips if c.role is ClipRole.SPEAKER]
-    wide = next((c for c in project.clips if c.role is ClipRole.WIDE), None)
     if not speakers:
         raise ValueError("project has no speaker clips")
 
     names, energies, vads, available = [], [], [], []
-    for clip in speakers:
+    for k, clip in enumerate(speakers):
         label = clip.speaker_label or Path(clip.path).stem
         if clip.sync is None:
             raise ValueError(f"clip {label} is not synced")
@@ -151,28 +197,59 @@ def auto_edit(
         energies.append(energy)
         vads.append(prob)
         available.append(avail)
+        if on_progress:
+            on_progress((k + 1) / len(speakers))
 
     activity = detect_speakers(names, energies, vads, available, detect)
     for i, label in enumerate(names):
         if activity.seconds(i) == 0 and available[i].any():
             warnings.append(f"{label}: never detected as speaking; check the camera roles")
+    return Analysis(activity, [c.id for c in speakers], vad.name, warnings)
 
-    shots = plan_shots(activity, params, has_wide=wide is not None)
+
+def cutlist_from_analysis(
+    project: Project, analysis: Analysis, switch: SwitchParams | None = None
+) -> CutList:
+    """Camera cuts from an analysis, using the project's preset (or ``switch``)."""
+    params = switch or params_for(project.preset)
+    duration_frames, _ = _timeline_frames(project)
+    speakers = [c for c in project.clips if c.role is ClipRole.SPEAKER]
+    if [c.id for c in speakers] != analysis.speaker_clip_ids:
+        raise ValueError("speaker cameras changed since the analysis; analyse again")
+    wide = next((c for c in project.clips if c.role is ClipRole.WIDE), None)
+    shots = plan_shots(analysis.activity, params, has_wide=wide is not None)
     segments = shots_to_segments(
         shots,
-        analysis_rate=activity.frame_rate,
-        fps=fps,
+        analysis_rate=analysis.activity.frame_rate,
+        fps=project.output.fps,
         duration_frames=duration_frames,
         speaker_clips=[c.id for c in speakers],
         wide_clip=wide.id if wide else None,
     )
     cutlist = CutList(
         project_id=project.id,
-        fps=fps,
+        fps=project.output.fps,
         segments=segments,
         audio=AudioConfig(
             gains_db={c.id: 0.0 for c in project.clips if c.role is not ClipRole.BROLL}
         ),
     )
     cutlist.check_against(project)
-    return AutoEditResult(cutlist, activity, vad.name, warnings)
+    return cutlist
+
+
+def auto_edit(
+    project: Project,
+    *,
+    vad: Vad | VadKind = "auto",
+    switch: SwitchParams | None = None,
+    detect: DetectParams | None = None,
+    cache_dir: Path | None = None,
+    sample_rate: int = SYNC_SAMPLE_RATE,
+) -> AutoEditResult:
+    """Detect who speaks when and build the CutList for ``project``."""
+    analysis = analyze_project(
+        project, vad=vad, detect=detect, cache_dir=cache_dir, sample_rate=sample_rate
+    )
+    cutlist = cutlist_from_analysis(project, analysis, switch)
+    return AutoEditResult(cutlist, analysis.activity, analysis.vad_backend, analysis.warnings)

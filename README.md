@@ -9,7 +9,7 @@ Everything runs on your own machine using free, open-source components.
 🧾 **Decisions:** [`docs/DECISIONS.md`](docs/DECISIONS.md) ·
 🎥 **Test footage:** [`docs/TEST_FOOTAGE.md`](docs/TEST_FOOTAGE.md)
 
-**Current phase:** 3 — Render engine (code done; real-footage checks for Phases 1–3 pending)
+**Current phase:** 4 — Local backend done (real-footage checks for Phases 1–3 pending); next: Phase 5 UI
 
 ---
 
@@ -68,14 +68,17 @@ Commit `uv.lock`, `pnpm-lock.yaml`, `schemas/` and `packages/types/src/generated
 | `uv run multicam render --project project.json --cutlist cutlist.json --out episode.mp4` | Render the final video (`--preset youtube-1080p/youtube-4k/master/draft`) |
 | `uv run multicam encoders` | Show which hardware/software encoders work on this machine |
 | `uv run multicam proxy cam1.mp4 cam2.mp4` | Low-res proxies for the editor |
+| `uv run multicam-api` | Start the local API on http://127.0.0.1:8765 (docs at `/docs`) |
+| `uv run python scripts/api_demo.py cam1.mp4 cam2.mp4` | Whole pipeline through the API (server must be running) |
 | `uv run multicam --help` | Engine CLI |
 
 ## Repository layout
 
 ```
-engine/src/multicam_engine/   Python engine (models, benchmark; more per phase)
+engine/src/multicam_engine/   Python engine: media, sync, analysis, decide, render, models
+apps/api/src/multicam_api/    Local backend: FastAPI + SQLite + Huey (Phase 4)
 packages/types/               TypeScript types generated from engine models
-schemas/                      Generated JSON Schema (source for TS types)
+schemas/                      Generated JSON Schema + OpenAPI (sources for TS types/client)
 scripts/                      Dev scripts (doctor, schema export)
 packaging/                    Model manifest, ffmpeg notes, fetch scripts
 tests/                        pytest suite
