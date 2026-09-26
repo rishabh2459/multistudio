@@ -1,0 +1,27 @@
+{
+  "name": "@multicam/desktop",
+  "version": "0.1.0",
+  "productName": "Multicam Studio",
+  "private": true,
+  "description": "Multicam Studio desktop app (Electron shell around the web UI and the Python engine).",
+  "author": "Multicam Studio",
+  "type": "commonjs",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json && electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "e2e": "tsc -p tsconfig.build.json && playwright test",
+    "backend": "cd ../.. && uv run --with \"pyinstaller>=6.10,<7\" python packaging/scripts/build_backend.py",
+    "package": "node scripts/package.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.0.0",
+    "electron": "^44.4.0",
+    "electron-builder": "^26.16.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}

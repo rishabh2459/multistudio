@@ -12,6 +12,7 @@ const STAGE_LABELS: Record<string, string> = {
   'render:video': 'Rendering video',
   'render:join': 'Joining parts',
   'render:done': 'Finishing',
+  proxy: 'Making previews',
   done: 'Done',
 };
 
@@ -22,6 +23,7 @@ export const KIND_LABELS: Record<JobKind, string> = {
   decide: 'Camera cuts',
   auto: 'Auto edit',
   render: 'Render',
+  proxy: 'Preparing previews',
 };
 
 export function stageLabel(job: Pick<Job, 'stage' | 'status'>): string {

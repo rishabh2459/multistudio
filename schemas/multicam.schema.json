@@ -318,6 +318,19 @@
         "is_vfr": {
           "type": "boolean"
         },
+        "start_timecode": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{2}:\\d{2}:\\d{2}[:;.]\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Embedded start timecode (HH:MM:SS:FF, ';' before FF = drop-frame)"
+        },
         "video_codec": {
           "type": "string"
         },
@@ -335,7 +348,8 @@
         "video_codec",
         "audio_codec",
         "audio_sample_rate",
-        "audio_channels"
+        "audio_channels",
+        "start_timecode"
       ],
       "title": "MediaInfo",
       "type": "object"

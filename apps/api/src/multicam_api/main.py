@@ -2,6 +2,9 @@
 
 The desktop app starts it with ``--port 0`` (pick any free port) and reads the
 first stdout line ``MULTICAM_API_READY port=<n>`` to know where to connect.
+With ``--watch-stdin`` the server shuts down cleanly when its stdin closes: the
+app closes it to stop the server, and the OS closes it if the app crashes, so
+the backend never outlives the window (works the same on macOS and Windows).
 """
 
 from __future__ import annotations
@@ -10,8 +13,10 @@ import argparse
 import logging
 import socket
 import sys
-from collections.abc import Sequence
+import threading
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import BinaryIO
 
 import uvicorn
 
@@ -29,11 +34,30 @@ def bind_socket(port: int) -> socket.socket:
     return sock
 
 
+def watch_stream(stream: BinaryIO, on_close: Callable[[], None]) -> threading.Thread:
+    """Call ``on_close`` once ``stream`` reaches end-of-file (in a daemon thread)."""
+
+    def run() -> None:
+        try:
+            while stream.read(1024):
+                pass
+        except (OSError, ValueError):
+            pass
+        on_close()
+
+    thread = threading.Thread(target=run, name="stdin-watch", daemon=True)
+    thread.start()
+    return thread
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="multicam-api", description="Multicam Studio local API")
     parser.add_argument("--port", type=int, default=8765, help="0 = any free port")
     parser.add_argument("--data-dir", help="override MULTICAM_DATA_DIR")
     parser.add_argument("--log-level", default="info")
+    parser.add_argument(
+        "--watch-stdin", action="store_true", help="stop when stdin closes (desktop app)"
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -48,7 +72,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     port = sock.getsockname()[1]
     print(f"MULTICAM_API_READY port={port}", flush=True)
     config = uvicorn.Config(create_app(settings), log_level=args.log_level, access_log=False)
-    uvicorn.Server(config).run(sockets=[sock])
+    server = uvicorn.Server(config)
+    if args.watch_stdin:
+
+        def stop() -> None:
+            logging.getLogger(__name__).info("stdin closed: shutting down")
+            server.should_exit = True
+
+        watch_stream(sys.stdin.buffer, stop)
+    server.run(sockets=[sock])
     return 0
 
 

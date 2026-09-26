@@ -124,3 +124,24 @@ def test_timestamps_vary() -> None:
     assert not timestamps_vary([p * 100 for p in shuffled])
     assert timestamps_vary([0, 100, 200, 350, 400, 480, 600, 640, 800, 900])
     assert not timestamps_vary([0])
+
+
+def test_start_timecode_from_any_usual_place() -> None:
+    assert parse_probe(_data(), PATH).media.start_timecode is None
+    tagged = _data(tags={"timecode": "01:00:00;00"})
+    assert parse_probe(tagged, PATH).media.start_timecode == "01:00:00;00"
+    tmcd = _data()
+    tmcd["streams"].append(
+        {
+            "index": 2,
+            "codec_type": "data",
+            "codec_tag_string": "tmcd",
+            "tags": {"timecode": "10:00:00:00"},
+        }
+    )
+    assert parse_probe(tmcd, PATH).media.start_timecode == "10:00:00:00"
+    container = _data()
+    container["format"]["tags"] = {"timecode": "00:59:58:12"}
+    assert parse_probe(container, PATH).media.start_timecode == "00:59:58:12"
+    junk = _data(tags={"timecode": "yesterday"})
+    assert parse_probe(junk, PATH).media.start_timecode is None

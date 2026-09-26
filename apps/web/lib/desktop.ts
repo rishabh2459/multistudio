@@ -13,6 +13,13 @@ export interface DesktopBridge {
   pickFolder?: (options: { title?: string }) => Promise<string | null>;
   /** Reveal a file in Finder / Explorer. */
   showInFolder?: (path: string) => Promise<void>;
+  /** App version and OS ('darwin', 'win32', ...). */
+  appVersion?: string;
+  platform?: string;
+  /** Build the diagnostic report, copy it to the clipboard and return it. */
+  copyDiagnostics?: () => Promise<string>;
+  /** Open the folder with the log files. */
+  openLogs?: () => Promise<void>;
 }
 
 declare global {

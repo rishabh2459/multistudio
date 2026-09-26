@@ -132,6 +132,14 @@ def _covered_frames(
     return head, tail
 
 
+def covered_frames(
+    timing: ClipTiming, fps: Fraction, start_frame: int, frames: int, src_fps: Fraction
+) -> tuple[int, int]:
+    """(head, tail): frames at the start / end of a timeline range that the clip
+    did not record (public: the NLE export uses the same rule as the render)."""
+    return _covered_frames(timing, fps, start_frame, frames, src_fps)
+
+
 def chunk_pieces(
     pieces: list[VideoPiece], fps: Fraction, chunk_seconds: float, max_pieces: int
 ) -> list[list[int]]:

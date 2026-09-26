@@ -553,12 +553,12 @@ Total for the desktop product: **~4–5 months full-time**.
 **Goal:** First double-click, installable build.
 
 **Tasks**
-- [ ] Electron main process loads the static Next.js build
-- [ ] Sidecar launcher: pick free port, spawn Python binary, health check, restart on crash, clean shutdown
-- [ ] Secure IPC via preload (native file/folder dialogs, open-in-finder/explorer)
-- [ ] First PyInstaller build of the backend with ffmpeg + models bundled
-- [ ] Log files in the OS app-data folder; "Copy diagnostic report" button
-- [ ] Unsigned internal builds for Windows x64 and macOS (Apple Silicon + Intel)
+- [x] Electron main process loads the static Next.js build (`app://multicam/`, D52)
+- [x] Sidecar launcher: pick free port, spawn Python binary, health check, restart on crash, clean shutdown (stdin close, D53)
+- [x] Secure IPC via preload (native file/folder dialogs, open-in-finder/explorer); sandbox + context isolation + CSP
+- [x] First PyInstaller build of the backend with ffmpeg + models bundled (`build_backend.py` + smoke test, D54)
+- [x] Log files in the OS app-data folder; "Copy diagnostic report" button (Settings + Help menu)
+- [ ] Unsigned internal builds for Windows x64 and macOS (Apple Silicon + Intel) — config + workflow ready (`pnpm --filter @multicam/desktop package`, `.github/workflows/desktop.yml`); first installers still to be built and tried on a clean Mac
 
 **Done when:** On a clean machine with **no Python and no ffmpeg installed**, the app installs and runs the full flow.
 
@@ -569,13 +569,13 @@ Total for the desktop product: **~4–5 months full-time**.
 **Goal:** Let users review and fix the auto-edit; hand off to pro editors.
 
 **Tasks**
-- [ ] Timeline: per-camera lanes, waveforms, color-coded segments, playhead, zoom
-- [ ] Edit actions: change camera for a segment, drag cut points, split, merge
-- [ ] Multi-angle preview from proxies, kept in sync with the playhead
-- [ ] Undo/redo (CutList versions) + autosave
-- [ ] Keyboard shortcuts (1/2/3 to switch camera, J/K/L playback)
-- [ ] Export: FCPXML (Final Cut / DaVinci), Premiere XML, CMX3600 EDL
-- [ ] Verify exports open correctly in DaVinci Resolve (free) and Premiere
+- [x] Timeline: per-camera lanes, waveforms, color-coded segments, playhead, zoom
+- [x] Edit actions: change camera for a segment, drag cut points, split, merge (+ remove shot, live switching from the playhead)
+- [x] Multi-angle preview from proxies, kept in sync with the playhead (`proxy` job, audio from the reference camera)
+- [x] Undo/redo (CutList versions) + autosave (every change → new version after 0.8 s)
+- [x] Keyboard shortcuts (1–9 switch camera, J/K/L, Space, ←/→, S, Delete, ⌘Z)
+- [x] Export: FCPXML 1.9 (Final Cut / DaVinci), Premiere XML (xmeml v5), CMX3600 EDL — same source frames as the render (tested)
+- [ ] Verify exports open correctly in DaVinci Resolve (free) and Premiere — checklist in `docs/NLE_EXPORT.md`
 
 **Done when:** Any cut can be changed and re-rendered correctly, and exports open with correct sync in DaVinci Resolve and Premiere.
 
@@ -757,9 +757,9 @@ Record every significant decision here (or in `docs/DECISIONS.md`). **D14 onward
 | 2 — Speaker detection + switch | 🔄 In progress | 2026-09-24 | | Code + synthetic tests done (balanced: 97 % on synthetic interview, 1 h analysed in ~12 s). Real-footage benchmark pending (D29) |
 | 3 — Render engine | 🔄 In progress | 2026-09-24 | | Code + tests done: frame-exact on 193 cuts / 3 cams / ±drift (every frame verified), A/V sync < 1 ms. Real 60-min render on Mac pending |
 | 4 — Backend | ✅ Done (code) | 2026-09-25 | 2026-09-25 | "Done when" met by `tests/api/test_pipeline.py` + `scripts/api_demo.py` against a real server. Engine accuracy still pending real footage (Phases 1–3) |
-| 5 — Next.js UI v1 | 🔄 In progress | 2026-09-25 | | Code done; Playwright flow passes against the real API (synthetic clips). To verify on the Mac: `pnpm install`, build, Vitest, e2e |
-| 6 — Electron desktop | ⬜ Not started | | | |
-| 7 — Timeline editor + export | ⬜ Not started | | | |
+| 5 — Next.js UI v1 | ✅ Done | 2026-09-25 | 2026-09-25 | Build, Vitest (32) and Playwright e2e pass on the Mac (commit bf31eb6) |
+| 6 — Electron desktop | 🔄 In progress | 2026-09-25 | | App + sidecar + frozen backend work end to end (Electron e2e incl. H.264 playback, frozen build smoke test). Pending: first macOS/Windows installers + clean-machine test |
+| 7 — Timeline editor + export | 🔄 In progress | 2026-09-26 | | Editor + exports work end to end (web + Electron e2e; exported cuts = rendered frames). Pending: open the exports in Resolve / Premiere on the Mac |
 | 8 — Reframe | ⬜ Not started | | | |
 | 9 — Captions | ⬜ Not started | | | |
 | 10 — Filler removal | ⬜ Not started | | | |

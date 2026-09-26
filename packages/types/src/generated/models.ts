@@ -214,6 +214,10 @@ export interface MediaInfo {
   fps: Rational;
   height: number;
   is_vfr: boolean;
+  /**
+   * Embedded start timecode (HH:MM:SS:FF, ';' before FF = drop-frame)
+   */
+  start_timecode: string | null;
   video_codec: string;
   width: number;
 }

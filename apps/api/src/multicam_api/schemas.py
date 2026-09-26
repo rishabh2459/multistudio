@@ -10,8 +10,10 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from multicam_api.services.projects import FileStatus
+from multicam_engine.export import NleFormat
 from multicam_engine.models import CutList, OutputSettings
 from multicam_engine.models.project import ClipRole, MediaInfo, Preset, SyncResult
+from multicam_engine.models.time import Rational
 
 
 class ApiModel(BaseModel):
@@ -129,6 +131,7 @@ class JobKind(StrEnum):
     DECIDE = "decide"  # camera cuts from the analysis (new cutlist version)
     AUTO = "auto"  # probe + sync + analyze + decide
     RENDER = "render"  # final video from the latest cutlist
+    PROXY = "proxy"  # low-resolution previews for the timeline editor
 
 
 class JobStatus(StrEnum):
@@ -176,6 +179,7 @@ PARAMS_BY_KIND: dict[JobKind, type[ApiModel]] = {
     JobKind.DECIDE: DecideParams,
     JobKind.AUTO: AutoParams,
     JobKind.RENDER: RenderParams,
+    JobKind.PROXY: EmptyParams,
 }
 
 
@@ -213,6 +217,49 @@ class ExportOut(ApiModel):
     exists: bool
     size_bytes: int | None
     created_at: datetime
+
+
+# ------------------------------------------------------------------ editor
+class TimelineClip(ApiModel):
+    """How a clip maps onto the timeline, for players and waveforms in the editor.
+
+    At timeline time ``t`` (seconds) the clip shows media time
+    ``t * speed + media_offset_s`` (seconds from the start of the file / proxy)
+    and plays audio sample position ``(t * speed + audio_offset_s) * rate``.
+    """
+
+    clip_id: UUID
+    speed: float
+    media_offset_s: float
+    audio_offset_s: float
+    duration_s: float
+    fps: Rational
+    has_audio: bool
+    has_proxy: bool
+
+
+class TimelineOut(ApiModel):
+    fps: Rational
+    duration_frames: int | None = Field(description="Length of the latest cutlist, if any")
+    clips: list[TimelineClip]
+    proxies_ready: bool = Field(description="Every clip has a preview copy")
+
+
+class WaveformOut(ApiModel):
+    clip_id: UUID
+    rate: int = Field(description="Values per second of audio")
+    peaks: str = Field(description="Base64 bytes, one per bucket: 0 = silence .. 255 = full scale")
+
+
+class NleExportIn(ApiModel):
+    format: NleFormat
+    version: int | None = Field(default=None, description="Cutlist version; default latest")
+    output_path: str | None = Field(default=None, description="Default: the exports folder")
+
+
+class NleExportOut(ApiModel):
+    export: ExportOut
+    warnings: list[str]
 
 
 class ErrorOut(ApiModel):

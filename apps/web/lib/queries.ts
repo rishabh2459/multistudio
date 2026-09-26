@@ -9,6 +9,7 @@ import {
   type ClipUpdate,
   type Job,
   type JobKind,
+  type NleFormat,
   type ProjectCreate,
   type ProjectUpdate,
 } from './api';
@@ -23,6 +24,8 @@ export const qk = {
   cutlist: (id: string) => ['cutlist', id] as const,
   jobs: (id: string) => ['jobs', id] as const,
   exports: (id: string) => ['exports', id] as const,
+  timeline: (id: string) => ['timeline', id] as const,
+  waveform: (clipId: string, rate: number) => ['waveform', clipId, rate] as const,
 };
 
 /** Polling interval while a job runs and the event stream is down. */
@@ -62,6 +65,40 @@ export function useExports(id: string) {
   return useQuery({ queryKey: qk.exports(id), queryFn: () => api.listExports(id), enabled: !!id });
 }
 
+export function useTimeline(id: string) {
+  return useQuery({ queryKey: qk.timeline(id), queryFn: () => api.timeline(id), enabled: !!id });
+}
+
+/** Peak levels of a clip's audio (they never change for a file: cached for good). */
+export function useWaveform(clipId: string, rate: number, enabled = true) {
+  return useQuery({
+    queryKey: qk.waveform(clipId, rate),
+    queryFn: async () => {
+      const out = await api.waveform(clipId, rate);
+      return { rate: out.rate, peaks: decodePeaks(out.peaks) };
+    },
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  });
+}
+
+export function decodePeaks(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+export function useNleExport(projectId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ format, outputPath }: { format: NleFormat; outputPath?: string }) =>
+      api.nleExport(projectId, format, outputPath),
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.exports(projectId) }),
+  });
+}
+
 /** Refresh everything a finished job may have changed. */
 export function invalidateProject(client: QueryClient, projectId: string): Promise<void> {
   return Promise.all([
@@ -69,6 +106,7 @@ export function invalidateProject(client: QueryClient, projectId: string): Promi
     client.invalidateQueries({ queryKey: qk.cutlist(projectId) }),
     client.invalidateQueries({ queryKey: qk.exports(projectId) }),
     client.invalidateQueries({ queryKey: qk.projects }),
+    client.invalidateQueries({ queryKey: qk.timeline(projectId) }),
   ]).then(() => undefined);
 }
 

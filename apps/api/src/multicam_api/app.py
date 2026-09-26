@@ -25,7 +25,7 @@ from multicam_api.db.session import Database
 from multicam_api.infra.queue import HueyJobQueue, JobQueue
 from multicam_api.infra.storage import LocalStorage
 from multicam_api.jobs.runner import JobRunner
-from multicam_api.routers import clips, cutlists, exports, jobs, projects, system
+from multicam_api.routers import clips, cutlists, editor, exports, jobs, projects, system
 from multicam_api.schemas import JobStatus
 from multicam_api.state import AppState
 
@@ -116,6 +116,6 @@ def create_app(settings: Settings | None = None, queue: JobQueue | None = None) 
         allow_headers=["*"],
     )
 
-    for module in (system, projects, clips, cutlists, jobs, exports):
+    for module in (system, projects, clips, cutlists, jobs, exports, editor):
         app.include_router(module.router)
     return app

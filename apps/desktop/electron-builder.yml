@@ -1,0 +1,44 @@
+# Installers for internal testing (unsigned). Build with:
+#   pnpm --filter @multicam/desktop package
+# which first checks the web UI build and the standalone backend.
+appId: com.multicamstudio.app
+productName: Multicam Studio
+copyright: Copyright © 2026 Multicam Studio
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - '!dist/**/*.map'
+  - package.json
+extraResources:
+  - from: ../web/out
+    to: web
+  - from: ../../packaging/dist/multicam-api
+    to: backend
+asar: true
+npmRebuild: false
+mac:
+  category: public.app-category.video
+  target:
+    - dmg
+    - zip
+  # Ad-hoc signature: required to run on Apple Silicon; not notarized (Phase 11).
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false
+dmg:
+  writeUpdateInfo: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-win-${arch}-setup.${ext}
+linux:
+  target: AppImage
+  category: AudioVideo

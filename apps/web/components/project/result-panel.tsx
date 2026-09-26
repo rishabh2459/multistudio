@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, Film, FolderOpen } from 'lucide-react';
+import { Download, FileCode2, Film, FolderOpen } from 'lucide-react';
 import { useState } from 'react';
 
 import { ErrorAlert } from '@/components/error-alert';
@@ -10,12 +10,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { api, isFinished, type CutList, type Export, type Job, type Project } from '@/lib/api';
+import {
+  api,
+  isFinished,
+  type CutList,
+  type Export,
+  type Job,
+  type NleFormat,
+  type Project,
+} from '@/lib/api';
 import { clipDisplayName } from '@/lib/cutlist';
 import { desktop } from '@/lib/desktop';
 import { formatBytes, formatRelative, joinPath, slug } from '@/lib/format';
 import { latestJob } from '@/lib/jobs';
-import { useExports, useStartJob, useSystemInfo } from '@/lib/queries';
+import { useExports, useNleExport, useStartJob, useSystemInfo } from '@/lib/queries';
 import { useSettings } from '@/lib/settings-store';
 
 import { CutlistTimeline } from './cutlist-summary';
@@ -26,6 +34,18 @@ export const RENDER_PRESET_LABELS: Record<string, string> = {
   'youtube-4k': 'YouTube 4K',
   master: 'Master (high quality, large)',
   draft: 'Draft (fast preview)',
+};
+
+export const NLE_FORMATS: { format: NleFormat; label: string; hint: string }[] = [
+  { format: 'fcpxml', label: 'Final Cut / DaVinci Resolve', hint: '.fcpxml' },
+  { format: 'xmeml', label: 'Premiere Pro', hint: '.xml' },
+  { format: 'edl', label: 'EDL (cuts only)', hint: '.edl' },
+];
+
+export const EXPORT_KIND_LABELS: Record<string, string> = {
+  fcpxml: 'FCPXML',
+  xmeml: 'Premiere XML',
+  edl: 'EDL',
 };
 
 /** Output file for a render, or undefined to let the engine choose. */
@@ -143,6 +163,61 @@ function RenderOptions({ project, busy }: { project: Project; busy: boolean }) {
   );
 }
 
+function NleExports({ project }: { project: Project }) {
+  const nle = useNleExport(project.id);
+  const folder = useSettings((s) => s.outputFolder);
+  const [warnings, setWarnings] = useState<string[]>([]);
+
+  function run(format: NleFormat, hint: string) {
+    const outputPath = folder.trim()
+      ? joinPath(folder.trim(), `${slug(project.name)}${hint}`)
+      : undefined;
+    nle.mutate(
+      { format, ...(outputPath ? { outputPath } : {}) },
+      { onSuccess: (out) => setWarnings(out.warnings) },
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Open in editing software</CardTitle>
+        <CardDescription>
+          A timeline with every camera synced and your cuts, to finish the edit in a pro editor. It
+          points at your original files.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex flex-wrap gap-2">
+          {NLE_FORMATS.map(({ format, label, hint }) => (
+            <Button
+              key={format}
+              variant="outline"
+              disabled={nle.isPending}
+              onClick={() => run(format, hint)}
+            >
+              <FileCode2 /> {label}
+            </Button>
+          ))}
+        </div>
+        {nle.data && (
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            Saved {nle.data.export.path}
+          </p>
+        )}
+        {warnings.length > 0 && (
+          <ul className="list-disc pl-5 text-xs text-muted-foreground">
+            {warnings.slice(0, 6).map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        )}
+        <ErrorAlert error={nle.error} />
+      </CardContent>
+    </Card>
+  );
+}
+
 function ExportItem({ item }: { item: Export }) {
   const bridge = desktop();
   return (
@@ -152,6 +227,9 @@ function ExportItem({ item }: { item: Export }) {
       </span>
       {item.preset && (
         <Badge variant="secondary">{RENDER_PRESET_LABELS[item.preset] ?? item.preset}</Badge>
+      )}
+      {!item.preset && EXPORT_KIND_LABELS[item.kind] && (
+        <Badge variant="outline">{EXPORT_KIND_LABELS[item.kind]}</Badge>
       )}
       {item.exists ? (
         <span className="text-muted-foreground">
@@ -210,6 +288,8 @@ export function ResultPanel({
           {renderJob && <JobProgress job={renderJob} />}
         </CardContent>
       </Card>
+
+      {cutlist && <NleExports project={project} />}
 
       {latest && (
         <Card>

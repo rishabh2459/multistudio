@@ -8,6 +8,8 @@ import { ErrorAlert } from '@/components/error-alert';
 import { Badge } from '@/components/ui/badge';
 import { useCutlist, useLiveJobs, useProject } from '@/lib/queries';
 
+import { EditorView } from '@/components/editor/editor-view';
+
 import { ClipSetup } from './clip-setup';
 import { ProcessingPanel } from './processing-panel';
 import { ResultPanel } from './result-panel';
@@ -43,6 +45,12 @@ export function ProjectView({ id }: { id: string }) {
   const steps: Step[] = [
     { id: 'setup', label: 'Cameras', done: canProcess, enabled: true },
     { id: 'process', label: 'Auto edit', done: cut !== null, enabled: canProcess },
+    {
+      id: 'edit',
+      label: 'Edit',
+      done: (cutlist.data?.source ?? '') === 'manual',
+      enabled: cut !== null,
+    },
     { id: 'result', label: 'Export', done: false, enabled: cut !== null },
   ];
   const wanted = chosen ?? initialStep(canProcess ? p.clips.length : 0, cut !== null);
@@ -74,6 +82,14 @@ export function ProjectView({ id }: { id: string }) {
           project={p}
           jobs={jobList}
           cutlist={cut}
+          onNext={() => setChosen('edit')}
+        />
+      )}
+      {step === 'edit' && (
+        <EditorView
+          project={p}
+          cutlist={cutlist.data ?? null}
+          jobs={jobList}
           onNext={() => setChosen('result')}
         />
       )}

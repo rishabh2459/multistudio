@@ -584,7 +584,8 @@
           "analyze",
           "decide",
           "auto",
-          "render"
+          "render",
+          "proxy"
         ],
         "title": "JobKind",
         "type": "string"
@@ -772,6 +773,19 @@
             "title": "Is Vfr",
             "type": "boolean"
           },
+          "start_timecode": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{2}:\\d{2}:\\d{2}[:;.]\\d{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Embedded start timecode (HH:MM:SS:FF, ';' before FF = drop-frame)",
+            "title": "Start Timecode"
+          },
           "video_codec": {
             "title": "Video Codec",
             "type": "string"
@@ -791,10 +805,78 @@
           "video_codec",
           "audio_codec",
           "audio_sample_rate",
-          "audio_channels"
+          "audio_channels",
+          "start_timecode"
         ],
         "title": "MediaInfo",
         "type": "object"
+      },
+      "NleExportIn": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "$ref": "#/components/schemas/NleFormat"
+          },
+          "output_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: the exports folder",
+            "title": "Output Path"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cutlist version; default latest",
+            "title": "Version"
+          }
+        },
+        "required": [
+          "format"
+        ],
+        "title": "NleExportIn",
+        "type": "object"
+      },
+      "NleExportOut": {
+        "additionalProperties": false,
+        "properties": {
+          "export": {
+            "$ref": "#/components/schemas/ExportOut"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "export",
+          "warnings"
+        ],
+        "title": "NleExportOut",
+        "type": "object"
+      },
+      "NleFormat": {
+        "enum": [
+          "fcpxml",
+          "xmeml",
+          "edl"
+        ],
+        "title": "NleFormat",
+        "type": "string"
       },
       "OutputSettings": {
         "additionalProperties": false,
@@ -1395,6 +1477,96 @@
         "title": "SystemInfo",
         "type": "object"
       },
+      "TimelineClip": {
+        "additionalProperties": false,
+        "description": "How a clip maps onto the timeline, for players and waveforms in the editor.\n\nAt timeline time ``t`` (seconds) the clip shows media time\n``t * speed + media_offset_s`` (seconds from the start of the file / proxy)\nand plays audio sample position ``(t * speed + audio_offset_s) * rate``.",
+        "properties": {
+          "audio_offset_s": {
+            "title": "Audio Offset S",
+            "type": "number"
+          },
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "fps": {
+            "$ref": "#/components/schemas/Rational"
+          },
+          "has_audio": {
+            "title": "Has Audio",
+            "type": "boolean"
+          },
+          "has_proxy": {
+            "title": "Has Proxy",
+            "type": "boolean"
+          },
+          "media_offset_s": {
+            "title": "Media Offset S",
+            "type": "number"
+          },
+          "speed": {
+            "title": "Speed",
+            "type": "number"
+          }
+        },
+        "required": [
+          "clip_id",
+          "speed",
+          "media_offset_s",
+          "audio_offset_s",
+          "duration_s",
+          "fps",
+          "has_audio",
+          "has_proxy"
+        ],
+        "title": "TimelineClip",
+        "type": "object"
+      },
+      "TimelineOut": {
+        "additionalProperties": false,
+        "properties": {
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineClip"
+            },
+            "title": "Clips",
+            "type": "array"
+          },
+          "duration_frames": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Length of the latest cutlist, if any",
+            "title": "Duration Frames"
+          },
+          "fps": {
+            "$ref": "#/components/schemas/Rational"
+          },
+          "proxies_ready": {
+            "description": "Every clip has a preview copy",
+            "title": "Proxies Ready",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fps",
+          "duration_frames",
+          "clips",
+          "proxies_ready"
+        ],
+        "title": "TimelineOut",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -1433,6 +1605,33 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WaveformOut": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "peaks": {
+            "description": "Base64 bytes, one per bucket: 0 = silence .. 255 = full scale",
+            "title": "Peaks",
+            "type": "string"
+          },
+          "rate": {
+            "description": "Values per second of audio",
+            "title": "Rate",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clip_id",
+          "rate",
+          "peaks"
+        ],
+        "title": "WaveformOut",
         "type": "object"
       }
     }
@@ -1569,6 +1768,99 @@
         "summary": "Update Clip",
         "tags": [
           "clips"
+        ]
+      }
+    },
+    "/api/clips/{clip_id}/proxy": {
+      "get": {
+        "description": "The clip's preview copy (seekable; created by a `proxy` job).",
+        "operationId": "clip_proxy_api_clips__clip_id__proxy_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Clip Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clip Proxy",
+        "tags": [
+          "editor"
+        ]
+      }
+    },
+    "/api/clips/{clip_id}/waveform": {
+      "get": {
+        "description": "Peak levels of the clip's own audio (sample 0 = start of its audio).",
+        "operationId": "clip_waveform_api_clips__clip_id__waveform_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Clip Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rate",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 400,
+              "minimum": 1,
+              "title": "Rate",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaveformOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clip Waveform",
+        "tags": [
+          "editor"
         ]
       }
     },
@@ -2517,6 +2809,104 @@
         "summary": "Create Job",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/nle-exports": {
+      "post": {
+        "description": "Write the edit for Final Cut / Resolve (FCPXML), Premiere (XML) or any NLE (EDL).",
+        "operationId": "export_timeline_api_projects__project_id__nle_exports_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NleExportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NleExportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Timeline",
+        "tags": [
+          "editor"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/timeline": {
+      "get": {
+        "description": "How every clip maps onto the timeline (for the players and waveforms).",
+        "operationId": "timeline_api_projects__project_id__timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Timeline",
+        "tags": [
+          "editor"
         ]
       }
     },

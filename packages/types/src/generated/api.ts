@@ -24,6 +24,46 @@ export interface paths {
         patch: operations["update_clip_api_clips__clip_id__patch"];
         trace?: never;
     };
+    "/api/clips/{clip_id}/proxy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Clip Proxy
+         * @description The clip's preview copy (seekable; created by a `proxy` job).
+         */
+        get: operations["clip_proxy_api_clips__clip_id__proxy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/clips/{clip_id}/waveform": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Clip Waveform
+         * @description Peak levels of the clip's own audio (sample 0 = start of its audio).
+         */
+        get: operations["clip_waveform_api_clips__clip_id__waveform_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/exports/{export_id}": {
         parameters: {
             query?: never;
@@ -302,6 +342,46 @@ export interface paths {
         put?: never;
         /** Create Job */
         post: operations["create_job_api_projects__project_id__jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/nle-exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Timeline
+         * @description Write the edit for Final Cut / Resolve (FCPXML), Premiere (XML) or any NLE (EDL).
+         */
+        post: operations["export_timeline_api_projects__project_id__nle_exports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Timeline
+         * @description How every clip maps onto the timeline (for the players and waveforms).
+         */
+        get: operations["timeline_api_projects__project_id__timeline_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -587,7 +667,7 @@ export interface components {
          * JobKind
          * @enum {string}
          */
-        JobKind: "probe" | "sync" | "analyze" | "decide" | "auto" | "render";
+        JobKind: "probe" | "sync" | "analyze" | "decide" | "auto" | "render" | "proxy";
         /** JobOut */
         JobOut: {
             /**
@@ -656,11 +736,41 @@ export interface components {
             height: number;
             /** Is Vfr */
             is_vfr: boolean;
+            /**
+             * Start Timecode
+             * @description Embedded start timecode (HH:MM:SS:FF, ';' before FF = drop-frame)
+             */
+            start_timecode: string | null;
             /** Video Codec */
             video_codec: string;
             /** Width */
             width: number;
         };
+        /** NleExportIn */
+        NleExportIn: {
+            format: components["schemas"]["NleFormat"];
+            /**
+             * Output Path
+             * @description Default: the exports folder
+             */
+            output_path?: string | null;
+            /**
+             * Version
+             * @description Cutlist version; default latest
+             */
+            version?: number | null;
+        };
+        /** NleExportOut */
+        NleExportOut: {
+            export: components["schemas"]["ExportOut"];
+            /** Warnings */
+            warnings: string[];
+        };
+        /**
+         * NleFormat
+         * @enum {string}
+         */
+        NleFormat: "fcpxml" | "xmeml" | "edl";
         /** OutputSettings */
         OutputSettings: {
             fps: components["schemas"]["Rational"];
@@ -904,6 +1014,50 @@ export interface components {
             /** Vad Model Available */
             vad_model_available: boolean;
         };
+        /**
+         * TimelineClip
+         * @description How a clip maps onto the timeline, for players and waveforms in the editor.
+         *
+         *     At timeline time ``t`` (seconds) the clip shows media time
+         *     ``t * speed + media_offset_s`` (seconds from the start of the file / proxy)
+         *     and plays audio sample position ``(t * speed + audio_offset_s) * rate``.
+         */
+        TimelineClip: {
+            /** Audio Offset S */
+            audio_offset_s: number;
+            /**
+             * Clip Id
+             * Format: uuid
+             */
+            clip_id: string;
+            /** Duration S */
+            duration_s: number;
+            fps: components["schemas"]["Rational"];
+            /** Has Audio */
+            has_audio: boolean;
+            /** Has Proxy */
+            has_proxy: boolean;
+            /** Media Offset S */
+            media_offset_s: number;
+            /** Speed */
+            speed: number;
+        };
+        /** TimelineOut */
+        TimelineOut: {
+            /** Clips */
+            clips: components["schemas"]["TimelineClip"][];
+            /**
+             * Duration Frames
+             * @description Length of the latest cutlist, if any
+             */
+            duration_frames: number | null;
+            fps: components["schemas"]["Rational"];
+            /**
+             * Proxies Ready
+             * @description Every clip has a preview copy
+             */
+            proxies_ready: boolean;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -916,6 +1070,24 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WaveformOut */
+        WaveformOut: {
+            /**
+             * Clip Id
+             * Format: uuid
+             */
+            clip_id: string;
+            /**
+             * Peaks
+             * @description Base64 bytes, one per bucket: 0 = silence .. 255 = full scale
+             */
+            peaks: string;
+            /**
+             * Rate
+             * @description Values per second of audio
+             */
+            rate: number;
         };
     };
     responses: never;
@@ -1008,6 +1180,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClipOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clip_proxy_api_clips__clip_id__proxy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clip_waveform_api_clips__clip_id__waveform_get: {
+        parameters: {
+            query?: {
+                rate?: number;
+            };
+            header?: never;
+            path: {
+                clip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaveformOut"];
                 };
             };
             /** @description Validation Error */
@@ -1667,6 +1901,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_timeline_api_projects__project_id__nle_exports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NleExportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NleExportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    timeline_api_projects__project_id__timeline_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineOut"];
                 };
             };
             /** @description Validation Error */

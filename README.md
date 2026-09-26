@@ -75,6 +75,12 @@ Commit `uv.lock`, `pnpm-lock.yaml`, `schemas/` and `packages/types/src/generated
 | `pnpm --filter @multicam/web test` | UI unit/component tests (Vitest) |
 | `pnpm --filter @multicam/web e2e` | Full UI flow in Chromium against a real API (Playwright) |
 | `uv run python scripts/make_demo_media.py` | Synthetic 3-camera recording in `samples/demo/` to try the app |
+| `pnpm --filter @multicam/desktop dev` | Desktop app in development (engine via uv, UI from `apps/web/out`: build the web UI first) |
+| `pnpm --filter @multicam/desktop test` | Desktop unit tests (sidecar, static files, diagnostics) |
+| `pnpm --filter @multicam/desktop e2e` | Real Electron window + engine, whole flow |
+| `pnpm --filter @multicam/desktop backend` | Standalone engine with PyInstaller → `packaging/dist/multicam-api/` (needs static ffmpeg, see `packaging/ffmpeg/README.md`) |
+| `pnpm --filter @multicam/desktop package` | Installer for this machine → `apps/desktop/release/` |
+| `uv run python -m pytest tests/integration/test_nle_files.py` | Check that FCPXML / Premiere XML / EDL cut on the same frames as the render |
 | `uv run multicam --help` | Engine CLI |
 
 ## Repository layout

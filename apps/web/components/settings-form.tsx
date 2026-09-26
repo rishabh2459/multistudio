@@ -1,7 +1,7 @@
 'use client';
 
-import { CheckCircle2, FolderOpen, RotateCcw } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { CheckCircle2, ClipboardCopy, FileText, FolderOpen, RotateCcw } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 
 import { ErrorAlert } from '@/components/error-alert';
 import { Button } from '@/components/ui/button';
@@ -57,6 +57,55 @@ function EngineInfo() {
         {d.data_dir}
       </dd>
     </dl>
+  );
+}
+
+/** Desktop app only: logs and the diagnostic report for support. */
+export function HelpCard() {
+  const bridge = desktop();
+  const [state, setState] = useState<'idle' | 'copying' | 'copied' | 'error'>('idle');
+  if (!bridge?.copyDiagnostics) return null;
+  const copy = bridge.copyDiagnostics;
+
+  async function copyReport() {
+    setState('copying');
+    try {
+      await copy();
+      setState('copied');
+    } catch {
+      setState('error');
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Help</CardTitle>
+        <CardDescription>
+          Something not working? Copy the diagnostic report and paste it into your message. It
+          contains versions, settings and recent log lines, never your videos or passwords.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" disabled={state === 'copying'} onClick={() => void copyReport()}>
+          <ClipboardCopy /> Copy diagnostic report
+        </Button>
+        {bridge.openLogs && (
+          <Button variant="ghost" onClick={() => void bridge.openLogs?.()}>
+            <FileText /> Open logs folder
+          </Button>
+        )}
+        <span className="text-sm text-muted-foreground" aria-live="polite">
+          {state === 'copied' && 'Copied to the clipboard.'}
+          {state === 'error' && 'Could not create the report.'}
+        </span>
+        {bridge.appVersion && (
+          <span className="ml-auto text-xs text-muted-foreground">
+            Multicam Studio {bridge.appVersion}
+          </span>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -180,6 +229,8 @@ export function SettingsForm() {
           <EngineInfo />
         </CardContent>
       </Card>
+
+      <HelpCard />
 
       <Button variant="ghost" className="self-start" onClick={s.reset}>
         <RotateCcw /> Reset settings

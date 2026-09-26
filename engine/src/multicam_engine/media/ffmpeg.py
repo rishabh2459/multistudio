@@ -2,8 +2,9 @@
 
 Lookup order for each tool:
     1. ``MULTICAM_FFMPEG`` / ``MULTICAM_FFPROBE`` environment variable (the desktop
-       app points these at its bundled LGPL binaries, Phase 6).
-    2. ``PATH`` (development: Homebrew's ffmpeg).
+       app points these at its bundled binaries, Phase 6).
+    2. Next to the executable when running as the frozen (PyInstaller) backend.
+    3. ``PATH`` (development: Homebrew's ffmpeg).
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
@@ -31,6 +33,15 @@ class FFmpegError(RuntimeError):
         self.stderr = stderr
 
 
+def bundled_tool(name: Tool) -> Path | None:
+    """The copy shipped next to the frozen backend executable, if any."""
+    if not getattr(sys, "frozen", False):
+        return None
+    exe = name + (".exe" if sys.platform == "win32" else "")
+    candidate = Path(sys.executable).resolve().parent / exe
+    return candidate if candidate.is_file() else None
+
+
 def find_tool(name: Tool) -> str:
     env_var = f"MULTICAM_{name.upper()}"
     override = os.environ.get(env_var)
@@ -38,6 +49,9 @@ def find_tool(name: Tool) -> str:
         if Path(override).is_file():
             return override
         raise FFmpegNotFoundError(f"{env_var} points to {override!r}, which does not exist")
+    bundled = bundled_tool(name)
+    if bundled is not None:
+        return str(bundled)
     found = shutil.which(name)
     if found is None:
         raise FFmpegNotFoundError(

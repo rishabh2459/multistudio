@@ -226,7 +226,7 @@ export function ProcessingPanel({
                 </Button>
               ))}
               <Button className="ml-auto" onClick={onNext} disabled={busy}>
-                Continue to export
+                Continue to editing
               </Button>
             </div>
           </CardContent>

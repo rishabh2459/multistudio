@@ -37,7 +37,8 @@ from multicam_engine.media.probe import ProbeError, probe
 from multicam_engine.models.cutlist import AudioConfig, AudioMode, CutList
 from multicam_engine.models.project import ClipRole, Project
 from multicam_engine.pipeline import Analysis, analyze_project, cutlist_from_analysis
-from multicam_engine.render import PRESETS, RenderProgress, render
+from multicam_engine.render import PRESETS, RenderProgress, make_proxy, render
+from multicam_engine.render.proxy import proxy_path
 from multicam_engine.sync import sync_files
 
 Result = dict[str, Any]
@@ -388,6 +389,27 @@ def run_render(ctx: JobContext) -> Result:
     return {**out_result, "cached": False}
 
 
+# ------------------------------------------------------------------ proxy
+def run_proxy(ctx: JobContext) -> Result:
+    """Preview copies (540p, short GOP) of every clip for the timeline editor.
+    Existing proxies of unchanged files are reused."""
+    check_files(ctx)
+    with ctx.db.session() as s:
+        paths = [c.path for c in _project(s, ctx).clips]
+    folder = ctx.storage.proxies_dir(ctx.project_id)
+    made = 0
+    for i, path in enumerate(paths):
+        name = Path(path).name
+        ctx.report("proxy", i / max(1, len(paths)), name, force=True)
+        existed = proxy_path(Path(path), folder).is_file()
+        try:
+            make_proxy(path, folder)
+        except Exception as exc:
+            raise JobFailedError(f"cannot make a preview of {name}: {exc}") from exc
+        made += not existed
+    return {"clips": len(paths), "made": made, "cached": made == 0}
+
+
 STEPS: dict[JobKind, Callable[[JobContext], Result]] = {
     JobKind.PROBE: run_probe,
     JobKind.SYNC: run_sync,
@@ -395,4 +417,5 @@ STEPS: dict[JobKind, Callable[[JobContext], Result]] = {
     JobKind.DECIDE: run_decide,
     JobKind.AUTO: run_auto,
     JobKind.RENDER: run_render,
+    JobKind.PROXY: run_proxy,
 }

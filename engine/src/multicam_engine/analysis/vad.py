@@ -16,6 +16,7 @@ of the preceding audio (outputs discarded), and all blocks run as one batch:
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -47,10 +48,14 @@ class Vad(Protocol):
 
 def models_dir() -> Path:
     """Where bundled model files live. ``MULTICAM_MODELS_DIR`` overrides (the
-    desktop app sets it); otherwise the source tree's ``packaging/models``."""
+    desktop app sets it); the frozen backend has them in its bundle; otherwise
+    the source tree's ``packaging/models``."""
     override = os.environ.get("MULTICAM_MODELS_DIR")
     if override:
         return Path(override)
+    bundle = getattr(sys, "_MEIPASS", None)  # set by PyInstaller
+    if bundle:
+        return Path(bundle) / "models"
     return Path(__file__).resolve().parents[4] / "packaging" / "models"
 
 

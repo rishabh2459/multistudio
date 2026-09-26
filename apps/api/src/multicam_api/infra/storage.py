@@ -20,11 +20,15 @@ class StorageBackend(Protocol):
 
     def exports_dir(self, project_id: UUID) -> Path: ...
 
+    def proxies_dir(self, project_id: UUID) -> Path:
+        """Low-resolution preview copies of the clips (timeline editor)."""
+        ...
+
     def delete_project(self, project_id: UUID) -> None: ...
 
 
 class LocalStorage:
-    """``<root>/<project id>/{artifacts,exports}/``."""
+    """``<root>/<project id>/{artifacts,exports,proxies}/``."""
 
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -41,6 +45,11 @@ class LocalStorage:
 
     def exports_dir(self, project_id: UUID) -> Path:
         folder = self._project_dir(project_id) / "exports"
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    def proxies_dir(self, project_id: UUID) -> Path:
+        folder = self._project_dir(project_id) / "proxies"
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 

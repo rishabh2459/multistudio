@@ -18,6 +18,7 @@ Variable frame rate (phones)
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from fractions import Fraction
 from itertools import pairwise
@@ -136,6 +137,23 @@ def _rotation(stream: dict[str, Any]) -> int:
     return degrees % 360
 
 
+_TIMECODE = re.compile(r"^\d{2}:\d{2}:\d{2}[:;.]\d{2}$")
+
+
+def start_timecode(data: dict[str, Any], video: dict[str, Any]) -> str | None:
+    """Embedded start timecode: video stream tag, a ``tmcd`` data stream, or the
+    container (cameras and recorders write it in one of these places)."""
+    candidates: list[object] = [(video.get("tags") or {}).get("timecode")]
+    for stream in data.get("streams") or []:
+        if stream.get("codec_type") == "data" or stream.get("codec_tag_string") == "tmcd":
+            candidates.append((stream.get("tags") or {}).get("timecode"))
+    candidates.append(((data.get("format") or {}).get("tags") or {}).get("timecode"))
+    for value in candidates:
+        if isinstance(value, str) and _TIMECODE.match(value.strip()):
+            return value.strip()
+    return None
+
+
 def _is_attached_picture(stream: dict[str, Any]) -> bool:
     return bool((stream.get("disposition") or {}).get("attached_pic"))
 
@@ -189,6 +207,7 @@ def parse_probe(
         audio_codec=str(audio.get("codec_name")) if audio else None,
         audio_sample_rate=sample_rate,
         audio_channels=int(audio.get("channels") or 0) if audio else 0,
+        start_timecode=start_timecode(data, video),
     )
     return ProbeResult(
         path=path,

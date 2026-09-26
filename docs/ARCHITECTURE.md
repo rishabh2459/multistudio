@@ -16,6 +16,21 @@ apps/api (FastAPI, Phase 4) ── jobs ──► engine (multicam_engine)
 * `engine` never imports web, API, or desktop code.
 * `apps/api` owns persistence and job orchestration; it calls the engine.
 * `packages/types` is **generated** from the engine's Pydantic models.
+* `apps/desktop` never talks to the engine directly: it starts `multicam-api`
+  (sidecar), serves the UI, and exposes OS features to the UI only through the
+  preload bridge `window.multicam` (contract in `apps/web/lib/desktop.ts`).
+
+## Desktop runtime (Phase 6)
+
+```
+Electron main ──spawn──► multicam-api --port 0 --watch-stdin   (frozen: resources/backend/)
+   │  reads "MULTICAM_API_READY port=N", polls /api/system/health, token per launch
+   │  stop = close stdin; crash = restart (same port)
+   ├─ serves app://multicam/  ← resources/web (static UI), strict CSP
+   └─ preload (sandboxed) → window.multicam { apiBase, apiToken, pickFiles, pickFolder,
+                                              showInFolder, copyDiagnostics, openLogs }
+Logs: <OS logs folder>/Multicam Studio/{main,engine}.log
+```
 
 ## Contracts
 

@@ -23,6 +23,11 @@ export type JobStatus = Schema<'JobStatus'>;
 export type Export = Schema<'ExportOut'>;
 export type ClipRole = Schema<'ClipRole'>;
 export type Preset = Schema<'Preset'>;
+export type TimelineOut = Schema<'TimelineOut'>;
+export type TimelineClip = Schema<'TimelineClip'>;
+export type WaveformOut = Schema<'WaveformOut'>;
+export type NleFormat = Schema<'NleFormat'>;
+export type NleExportOut = Schema<'NleExportOut'>;
 
 export const TOKEN_HEADER = 'X-Multicam-Token';
 
@@ -114,6 +119,19 @@ export const api = {
       throw err;
     }
   },
+
+  saveCutlist: (projectId: string, cutlist: CutList) =>
+    request<CutListOut>('PUT', `/api/projects/${enc(projectId)}/cutlist`, { cutlist }),
+  timeline: (projectId: string) =>
+    request<TimelineOut>('GET', `/api/projects/${enc(projectId)}/timeline`),
+  waveform: (clipId: string, rate = 50) =>
+    request<WaveformOut>('GET', `/api/clips/${enc(clipId)}/waveform?rate=${rate}`),
+  proxyUrl: (clipId: string) => resourceUrl(`/api/clips/${enc(clipId)}/proxy`),
+  nleExport: (projectId: string, format: NleFormat, outputPath?: string) =>
+    request<NleExportOut>('POST', `/api/projects/${enc(projectId)}/nle-exports`, {
+      format,
+      ...(outputPath ? { output_path: outputPath } : {}),
+    }),
 
   startJob: (projectId: string, kind: JobKind, params: Record<string, unknown> = {}) =>
     request<Job>('POST', `/api/projects/${enc(projectId)}/jobs`, { kind, params }),

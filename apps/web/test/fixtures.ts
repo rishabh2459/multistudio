@@ -22,6 +22,7 @@ export function makeClip(over: Partial<Clip> = {}): Clip {
       audio_codec: 'aac',
       audio_sample_rate: 48000,
       audio_channels: 2,
+      start_timecode: null,
     },
     sync: null,
     file_status: 'ok',

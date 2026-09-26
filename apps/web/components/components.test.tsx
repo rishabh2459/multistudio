@@ -6,6 +6,7 @@ import { renderWithClient } from '@/test/render';
 import { useSettings } from '@/lib/settings-store';
 
 import { NewProjectForm } from './new-project-form';
+import { HelpCard } from './settings-form';
 import { parsePaths } from './project/clip-setup';
 import { JobProgress } from './project/job-progress';
 import { SyncTable } from './project/processing-panel';
@@ -27,7 +28,7 @@ describe('stepper', () => {
   it('starts where the project is', () => {
     expect(initialStep(0, false)).toBe('setup');
     expect(initialStep(3, false)).toBe('process');
-    expect(initialStep(3, true)).toBe('result');
+    expect(initialStep(3, true)).toBe('edit');
   });
 
   it('disables steps that are not reachable yet', () => {
@@ -165,5 +166,29 @@ describe('NewProjectForm', () => {
     fireEvent.click(create);
     await waitFor(() => expect(push).toHaveBeenCalledWith('/project/?id=new-id'));
     expect(calls[0]!.body).toEqual({ name: 'Ep 7', preset: 'dynamic' });
+  });
+});
+
+describe('HelpCard (desktop app)', () => {
+  afterEach(() => {
+    delete window.multicam;
+  });
+
+  it('is hidden in a plain browser', () => {
+    const { container } = renderWithClient(<HelpCard />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('copies the diagnostic report through the bridge', async () => {
+    const copyDiagnostics = vi.fn(async () => 'report');
+    const openLogs = vi.fn(async () => undefined);
+    window.multicam = { copyDiagnostics, openLogs, appVersion: '0.1.0' };
+    renderWithClient(<HelpCard />);
+    expect(screen.getByText('Multicam Studio 0.1.0')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Copy diagnostic report/ }));
+    expect(await screen.findByText('Copied to the clipboard.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Open logs folder/ }));
+    expect(openLogs).toHaveBeenCalledOnce();
+    expect(copyDiagnostics).toHaveBeenCalledOnce();
   });
 });

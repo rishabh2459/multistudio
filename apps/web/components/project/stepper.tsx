@@ -2,7 +2,7 @@ import { Check } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-export type StepId = 'setup' | 'process' | 'result';
+export type StepId = 'setup' | 'process' | 'edit' | 'result';
 
 export interface Step {
   id: StepId;
@@ -58,6 +58,6 @@ export function Stepper({
 
 /** Which step to open first for a project in this state. */
 export function initialStep(clipCount: number, hasCutlist: boolean): StepId {
-  if (hasCutlist) return 'result';
+  if (hasCutlist) return 'edit';
   return clipCount >= 2 ? 'process' : 'setup';
 }

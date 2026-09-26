@@ -42,6 +42,17 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | D49 | 2026-09-25 | Desktop bridge contract `window.multicam` (apiBase, apiToken, pickFiles, pickFolder, showInFolder) defined now; in a browser the UI falls back to typed paths and settings | Phase 6 only has to implement the preload side |
 | D50 | 2026-09-25 | One project event stream (`/api/projects/{id}/events`) feeds the jobs cache; polling (1 s) only while the stream is down; a job finishing refetches project, cutlist and exports | One connection per page, instant updates, still works without SSE |
 | D51 | 2026-09-25 | CORS middleware is outermost (after the token check) | A wrong token shows as "401" in the browser instead of "cannot reach the engine" |
+| D52 | 2026-09-25 | The window loads the static UI from a privileged custom scheme `app://multicam/` (served by the main process with a strict CSP), not `file://` | Absolute `/_next/` paths and `/project/?id=` routes work; stable secure origin for CORS (`MULTICAM_CORS=app://multicam`) |
+| D53 | 2026-09-25 | Engine lifecycle: `multicam-api --port 0 --watch-stdin`; ready line + health poll; per-launch token; stop = close stdin (kill after 8 s); crash → up to 3 restarts in 5 min on the same port (window reloads only if the port changed) | Same clean shutdown on macOS and Windows; an app crash closes the pipe so the engine never lingers |
+| D54 | 2026-09-25 | Backend frozen with PyInstaller one-folder (`packaging/pyinstaller/multicam-api.spec`), static ffmpeg/ffprobe next to the executable (engine looks there when frozen), model inside the bundle; build script smoke-tests it with a minimal PATH | No Python/ffmpeg needed on the user's machine; one-folder starts fast (~2 s) |
+| D55 | 2026-09-25 | Preload is sandboxed and exposes only `window.multicam` (config via one sync IPC call; dialogs, show in folder, diagnostics, logs via invoke); IPC answers only frames from our origin | Renderer has no Node access; small, auditable surface |
+| D56 | 2026-09-25 | Internal macOS builds are ad-hoc signed (`identity: '-'`), not notarized; Windows NSIS unsigned. Real signing/notarization in Phase 11 | Runs on Apple Silicon for testers (right-click → Open) without paying for certificates yet |
+| D57 | 2026-09-26 | NLE exports are built from the render plan's timing (offset + drift): video = one clip per shot trimmed to what the camera recorded; audio = one track per camera, split only where drift would exceed ¼ frame | Export and render cut on the same source frame (integration test); NLEs cannot express clock drift |
+| D58 | 2026-09-26 | Formats: FCPXML 1.9 (gap in the spine, shots on lane 1 video-only, camera audio on lanes −1…−n), FCP7 XML v5 for Premiere, CMX3600 EDL video-only with reel names + `FROM CLIP NAME` | Widest support (Final Cut, Resolve 17+, Premiere); EDL for conform tools |
+| D59 | 2026-09-26 | Embedded start timecode is read at probe time (`MediaInfo.start_timecode`, optional) and used as the source start in all exports; drop-frame at 29.97/59.94 | NLEs match media by timecode; without it relinking would be off by hours |
+| D60 | 2026-09-26 | Editor preview = 540p proxies (`proxy` job, short GOP) played in one `<video>` per camera, re-seeked only when >0.25 s off while playing; audio from the reference camera | Smooth multi-angle scrubbing without decoding 4K originals; one audio source avoids comb filtering |
+| D61 | 2026-09-26 | Edit state lives in a per-project zustand store (undo/redo stack, 200 steps); every change is autosaved 0.8 s later as a new CutList version | Nothing is lost; versions double as a history the export and render always read from (latest) |
+| D62 | 2026-09-26 | A camera key/click switches cameras *from the playhead* (splits the shot), like a vision mixer; double-click on a camera lane does the same at that point | Matches how multicam editing is done live; the simplest mental model for users |
 | D29 | 2026-09-23 | Continue Phase 1 before test footage exists, using synthetic signals + generated video files; phase is marked done only after the real-footage benchmark passes | Unblocks development; accuracy on real devices still has to be proven |
 
 ## Dependencies added
@@ -72,3 +83,6 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | openapi-typescript | MIT | dev only | API types from `schemas/openapi.json` |
 | vitest, jsdom, @testing-library/* | MIT | dev only | Component tests |
 | @playwright/test | Apache-2.0 | dev only | End-to-end test |
+| electron | MIT | desktop | App shell (Phase 6) |
+| electron-builder | MIT | dev only | Installers |
+| pyinstaller | GPL-2.0 with bootloader exception | build only (`uv run --with`) | Standalone backend; the exception allows shipping the result |

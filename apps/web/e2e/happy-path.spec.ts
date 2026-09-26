@@ -50,8 +50,45 @@ test('create a project, auto edit it and export a video', async ({ page }) => {
   await recut;
   await expect(page.getByTestId('job-progress')).toHaveCount(0, { timeout: 60_000 });
 
-  // 4. Export a draft
+  // 4. Edit: switch cameras with the keyboard, drag a cut, undo; autosaved as versions
+  await page.getByRole('button', { name: 'Continue to editing' }).click();
+  await expect(page.getByTestId('timeline')).toBeVisible();
+  await expect(page.getByTestId('camera-lane')).toHaveCount(3);
+  const shots = page.getByTestId('shot');
+  const before = await shots.count();
+  const status = page.getByTestId('save-status');
+  await expect(status).toContainText('Saved');
+  const savedVersion = async () =>
+    Number((await status.textContent())?.match(/version (\d+)/)?.[1]);
+  const v0 = await savedVersion();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Shift+ArrowLeft'); // playhead on the last cut
+  for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('3'); // wide camera from here on
+  await expect(status).toContainText(`version ${v0 + 1}`, { timeout: 10_000 });
+  const after = await shots.count();
+  expect(after).toBeGreaterThanOrEqual(before);
+  await page.keyboard.press('Meta+z');
+  await page.keyboard.press('Control+z');
+  await expect(shots).toHaveCount(before);
+  await expect(status).toContainText(`version ${v0 + 2}`, { timeout: 10_000 });
+  // drag the first cut 60 px to the right
+  const cut = page.getByRole('separator').first();
+  const box = (await cut.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect(status).toContainText(`version ${v0 + 3}`, { timeout: 10_000 });
+  // previews are made in the background (the proxy job)
+  await expect(page.getByTestId('job-progress')).toHaveCount(0, { timeout: 120_000 });
+
+  // 5. Export a draft + timelines for editing software
   await page.getByRole('button', { name: 'Continue to export' }).click();
+  for (const label of ['Final Cut / DaVinci Resolve', 'Premiere Pro', 'EDL (cuts only)']) {
+    await page.getByRole('button', { name: label }).click();
+    await expect(page.getByText(/^Saved .*\.(fcpxml|xml|edl)$/)).toBeVisible();
+  }
   await page.getByLabel('Quality').selectOption('draft');
   await page.getByRole('button', { name: 'Export video' }).click();
   const video = page.getByTestId('result-video');
@@ -62,7 +99,7 @@ test('create a project, auto edit it and export a video', async ({ page }) => {
   const head = await page.request.get(src!, { headers: { Range: 'bytes=0-11' } });
   expect(head.status()).toBe(206);
   expect((await head.body()).subarray(4, 8).toString()).toBe('ftyp');
-  await expect(page.getByRole('list', { name: 'Exports' }).getByRole('listitem')).toHaveCount(1);
+  await expect(page.getByRole('list', { name: 'Exports' }).getByRole('listitem')).toHaveCount(4);
 
   // Back on the dashboard the project shows as edited
   await page.getByRole('link', { name: 'All projects' }).click();

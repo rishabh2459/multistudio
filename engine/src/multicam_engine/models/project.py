@@ -39,6 +39,11 @@ class MediaInfo(StrictModel):
     audio_codec: str | None = None
     audio_sample_rate: int | None = Field(default=None, gt=0)
     audio_channels: int = Field(default=0, ge=0)
+    start_timecode: str | None = Field(
+        default=None,
+        description="Embedded start timecode (HH:MM:SS:FF, ';' before FF = drop-frame)",
+        pattern=r"^\d{2}:\d{2}:\d{2}[:;.]\d{2}$",
+    )
 
 
 class SyncResult(StrictModel):
