@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -42,6 +43,8 @@ from multicam_engine.sync.gcc_phat import FloatArray, find_peaks, gcc_phat_curve
 
 #: Offsets are reported at 48 kHz (20 us steps) regardless of the analysis rate.
 REPORT_SAMPLE_RATE = 48_000
+#: Clips decoded at the same time.
+MAX_PARALLEL_DECODE = 4
 
 
 @dataclass(frozen=True)
@@ -316,13 +319,24 @@ def sync_files(
     files = [f for f in files if f.resolve() != same]  # reference is handled separately
     notify = on_progress or (lambda _msg: None)
 
-    notify(f"decoding audio: {ref_path.name}")
-    ref_audio: FloatArray | None
-    ref_problem: str | None = None
-    try:
-        ref_audio = load_audio(ref_path, sample_rate, cache_dir)
-    except NoAudioError:
-        ref_audio, ref_problem = None, "reference clip has no audio; pick another reference"
+    # Decode every clip's audio in parallel (ffmpeg runs in its own process).
+    def decode(path: Path) -> FloatArray | None:
+        try:
+            return load_audio(path, sample_rate, cache_dir)
+        except NoAudioError:
+            return None
+
+    order = [ref_path, *files]
+    with ThreadPoolExecutor(max_workers=max(1, min(MAX_PARALLEL_DECODE, len(order)))) as pool:
+        futures = [pool.submit(decode, p) for p in order]
+        decoded: list[FloatArray | None] = []
+        for path, future in zip(order, futures, strict=True):
+            decoded.append(future.result())
+            notify(f"decoding audio: {path.name}")
+    ref_audio = decoded[0]
+    ref_problem = (
+        None if ref_audio is not None else ("reference clip has no audio; pick another reference")
+    )
 
     reports: list[ClipSyncReport] = [
         ClipSyncReport(
@@ -338,18 +352,14 @@ def sync_files(
             warnings=[ref_problem] if ref_problem else [],
         )
     ]
-    for path in files:
+    for path, clip_audio in zip(files, decoded[1:], strict=True):
         if ref_audio is None:
             pair = _failed(sample_rate, "cannot sync: reference clip has no audio")
+        elif clip_audio is None:
+            pair = _failed(sample_rate, "clip has no audio stream; align it manually")
         else:
-            notify(f"decoding audio: {path.name}")
-            try:
-                clip_audio = load_audio(path, sample_rate, cache_dir)
-            except NoAudioError:
-                pair = _failed(sample_rate, "clip has no audio stream; align it manually")
-            else:
-                notify(f"syncing: {path.name}")
-                pair = sync_signals(ref_audio, clip_audio, sample_rate, params)
+            notify(f"syncing: {path.name}")
+            pair = sync_signals(ref_audio, clip_audio, sample_rate, params)
         reports.append(_clip_report(path, pair))
 
     return SyncReport(analysis_sample_rate=sample_rate, reference_file=str(ref_path), clips=reports)

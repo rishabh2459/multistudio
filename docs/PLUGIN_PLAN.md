@@ -784,7 +784,7 @@ Add these to `docs/DECISIONS.md` when each is confirmed.
 | Phase | Status | Commit | Notes |
 |---|---|---|---|
 | PL0 | partly done | Phase 8 commit, PL0 commit | Phase 8 committed; `scripts/bench_pipeline.py`; T1 baseline in `docs/BENCHMARKS.md`; sync-confidence fix (D79). Open: T1 labels, human/AutoPod comparison set, more recordings, Mac/Windows timings |
-| PL1 | not started | | |
+| PL1 | done (engine) | PL1 commit | Layouts + cover-set switching (D74, D78), variety / wide frequency (D80), onset snap + confidence (D81), PUNCHY + user presets (D83), 10 cams, multi-channel mics, parallel decode (D84), muddy-mic warning (D82). T1 plan ≈ 22 s. Accuracy vs AutoPod waits on PL0 labels |
 | PL2 | not started | | |
 | PL3 | not started | | |
 | PL4 | not started | | |

@@ -9,6 +9,7 @@ result.cutlist                                       # -> render (Phase 3)
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import UUID
@@ -16,6 +17,8 @@ from uuid import UUID
 import numpy as np
 
 from multicam_engine.analysis.energy import FEATURE_RATE
+from multicam_engine.analysis.energy import FloatArray as FloatArrayT
+from multicam_engine.analysis.speakers import BoolArray as BoolArrayT
 from multicam_engine.analysis.speakers import (
     DetectParams,
     SpeakerActivity,
@@ -25,7 +28,8 @@ from multicam_engine.analysis.speakers import (
 )
 from multicam_engine.analysis.vad import Vad, VadKind, load_vad
 from multicam_engine.decide.presets import SwitchParams, params_for
-from multicam_engine.decide.switch import plan_shots, shots_to_segments
+from multicam_engine.decide.switch import Camera, camera_shots_to_segments, plan_camera_shots
+from multicam_engine.layout import LayoutError, ResolvedLayout, resolve_layout
 from multicam_engine.media.audio import SYNC_SAMPLE_RATE, NoAudioError, load_audio
 from multicam_engine.media.probe import probe
 from multicam_engine.models.cutlist import AudioConfig, CutList
@@ -35,10 +39,16 @@ from multicam_engine.models.project import (
     OutputSettings,
     Preset,
     Project,
+    ShotType,
 )
 from multicam_engine.sync.engine import SyncReport
 
 LOW_SYNC_CONFIDENCE = 0.5
+#: More than this share of speech labelled as two people at once usually means the
+#: mics hear everyone about equally loud (camera mics in one room).
+MUDDY_CROSSTALK_SHARE = 0.2
+#: Mics decoded / analysed at the same time (ffmpeg and ONNX release the GIL).
+MAX_PARALLEL_MICS = 4
 
 
 def _even(value: int) -> int:
@@ -103,9 +113,20 @@ class Analysis:
     """Who speaks when, for a project (the expensive half of auto-editing)."""
 
     activity: SpeakerActivity
+    #: Mic clip of each speaker (activity row order).
     speaker_clip_ids: list[UUID]
     vad_backend: str
     warnings: list[str] = field(default_factory=list)
+    #: Channel of each mic (-1 = all channels mixed); empty for old analyses.
+    mic_channels: list[int] = field(default_factory=list)
+
+    @property
+    def mic_keys(self) -> list[tuple[UUID, int | None]]:
+        channels = self.mic_channels or [-1] * len(self.speaker_clip_ids)
+        return [
+            (c, None if ch < 0 else ch)
+            for c, ch in zip(self.speaker_clip_ids, channels, strict=True)
+        ]
 
     def save(self, path: Path) -> None:
         """Store as ``.npz`` so a new preset can re-cut without re-analysing."""
@@ -118,6 +139,9 @@ class Analysis:
                 available=a.available,
                 speakers=np.array(a.speakers, dtype=str),
                 speaker_clip_ids=np.array([str(c) for c in self.speaker_clip_ids], dtype=str),
+                mic_channels=np.array(
+                    self.mic_channels or [-1] * len(self.speaker_clip_ids), dtype=np.int64
+                ),
                 frame_rate=np.array(a.frame_rate),
                 vad_backend=np.array(self.vad_backend),
                 warnings=np.array(self.warnings, dtype=str),
@@ -133,11 +157,15 @@ class Analysis:
                 available=data["available"].astype(bool),
                 frame_rate=int(data["frame_rate"]),
             )
+            channels = (
+                [int(c) for c in data["mic_channels"]] if "mic_channels" in data.files else []
+            )
             return cls(
                 activity=activity,
                 speaker_clip_ids=[UUID(str(c)) for c in data["speaker_clip_ids"]],
                 vad_backend=str(data["vad_backend"]),
                 warnings=[str(w) for w in data["warnings"]],
+                mic_channels=channels,
             )
 
 
@@ -162,49 +190,122 @@ def analyze_project(
     sample_rate: int = SYNC_SAMPLE_RATE,
     on_progress: Callable[[float], None] | None = None,
 ) -> Analysis:
-    """Measure loudness + speech on every speaker mic and label who speaks when."""
+    """Measure loudness + speech on every speaker's mic and label who speaks when.
+
+    Mics are decoded and analysed in parallel (audio only, no video decode)."""
     warnings: list[str] = []
     if isinstance(vad, str):
         vad, note = load_vad(vad)
         if note:
             warnings.append(note)
     _, n = _timeline_frames(project)
-    speakers = [c for c in project.clips if c.role is ClipRole.SPEAKER]
-    if not speakers:
-        raise ValueError("project has no speaker clips")
+    try:
+        layout = resolve_layout(project)
+        mics = layout.mic_keys
+    except LayoutError as exc:
+        raise ValueError(str(exc)) from exc
 
-    names, energies, vads, available = [], [], [], []
-    for k, clip in enumerate(speakers):
-        label = clip.speaker_label or Path(clip.path).stem
+    names = [s.name for s in layout.speakers]
+    clips = [project.clip(clip_id) for clip_id, _ in mics]
+    for name, clip in zip(names, clips, strict=True):
         if clip.sync is None:
-            raise ValueError(f"clip {label} is not synced")
+            raise ValueError(f"clip {name} is not synced")
         if clip.sync.confidence < LOW_SYNC_CONFIDENCE:
-            warnings.append(f"{label}: low sync confidence ({clip.sync.confidence:.2f})")
+            warnings.append(f"{name}: low sync confidence ({clip.sync.confidence:.2f})")
+
+    done = 0
+
+    def measure(k: int) -> tuple[FloatArrayT, FloatArrayT, BoolArrayT, str | None]:
+        nonlocal done
+        clip, (_, channel), name = clips[k], mics[k], names[k]
+        assert clip.sync is not None
+        note: str | None = None
         try:
-            audio = load_audio(clip.path, sample_rate, cache_dir)
+            audio = load_audio(clip.path, sample_rate, cache_dir, channel=channel)
         except NoAudioError:
-            warnings.append(f"{label}: no audio; this camera is only used if chosen manually")
+            note = f"{name}: no audio; this camera is only used if chosen manually"
             audio = np.zeros(0, dtype=np.float32)
         features = analyze_track(audio, sample_rate, vad) if len(audio) else None
         offset_s = clip.sync.offset_samples / clip.sync.sample_rate
         if features is None:
-            energy = np.full(n, -120.0)
-            prob = np.zeros(n)
-            avail = np.zeros(n, dtype=bool)
+            result = (np.full(n, -120.0), np.zeros(n), np.zeros(n, dtype=bool), note)
         else:
             energy, prob, avail = to_reference(features, n, offset_s, clip.sync.drift_ppm)
-        names.append(label)
-        energies.append(energy)
-        vads.append(prob)
-        available.append(avail)
+            result = (energy, prob, avail, note)
+        done += 1
         if on_progress:
-            on_progress((k + 1) / len(speakers))
+            on_progress(done / len(mics))
+        return result
+
+    workers = max(1, min(MAX_PARALLEL_MICS, len(mics)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        measured = list(pool.map(measure, range(len(mics))))
+    energies = [m[0] for m in measured]
+    vads = [m[1] for m in measured]
+    available = [m[2] for m in measured]
+    warnings.extend(m[3] for m in measured if m[3])
 
     activity = detect_speakers(names, energies, vads, available, detect)
     for i, label in enumerate(names):
         if activity.seconds(i) == 0 and available[i].any():
             warnings.append(f"{label}: never detected as speaking; check the camera roles")
-    return Analysis(activity, [c.id for c in speakers], vad.name, warnings)
+    voiced = int(np.count_nonzero(activity.labels != -1))
+    if (
+        len(names) > 1
+        and voiced
+        and activity.seconds(-2) * activity.frame_rate / voiced > (MUDDY_CROSSTALK_SHARE)
+    ):
+        warnings.append(
+            "the microphones hear everyone about equally loud, so who is speaking is often "
+            "unclear; a separate mic per person (lav / podcast mic) gives much better cuts"
+        )
+    return Analysis(
+        activity,
+        [clip_id for clip_id, _ in mics],
+        vad.name,
+        warnings,
+        mic_channels=[-1 if ch is None else ch for _, ch in mics],
+    )
+
+
+def clip_coverage(clip: Clip, n: int, rate: int = FEATURE_RATE) -> BoolArrayT | None:
+    """Analysis frames of the reference timeline this clip has picture for
+    (None: unknown, treat as always recording)."""
+    if clip.sync is None or clip.media is None:
+        return None
+    fps = clip.media.fps
+    duration_s = clip.media.duration_frames * fps.den / fps.num
+    t = np.arange(n, dtype=np.float64) / rate
+    offset_s = clip.sync.offset_samples / clip.sync.sample_rate
+    pos = t + offset_s + clip.sync.drift_ppm * 1e-6 * t
+    covered: BoolArrayT = (pos >= 0) & (pos <= duration_s)
+    return covered
+
+
+def switch_cameras(
+    project: Project, layout: ResolvedLayout, analysis: Analysis
+) -> tuple[list[Camera], list[UUID]]:
+    """The cameras as switching sees them, and their clip ids (same order)."""
+    index = layout.speaker_index()
+    n = analysis.activity.n_frames
+    mic_row = {key: i for i, key in enumerate(analysis.mic_keys)}
+    cams: list[Camera] = []
+    for cam in layout.cameras:
+        row = mic_row.get((cam.clip_id, None))
+        available = (
+            analysis.activity.available[row]
+            if row is not None
+            else clip_coverage(project.clip(cam.clip_id), n, analysis.activity.frame_rate)
+        )
+        cams.append(
+            Camera(
+                covers=frozenset(index[s] for s in cam.covers if s in index),
+                wide=cam.shot is ShotType.WIDE,
+                priority=cam.priority,
+                available=available,
+            )
+        )
+    return cams, [c.clip_id for c in layout.cameras]
 
 
 def cutlist_from_analysis(
@@ -213,18 +314,21 @@ def cutlist_from_analysis(
     """Camera cuts from an analysis, using the project's preset (or ``switch``)."""
     params = switch or params_for(project.preset)
     duration_frames, _ = _timeline_frames(project)
-    speakers = [c for c in project.clips if c.role is ClipRole.SPEAKER]
-    if [c.id for c in speakers] != analysis.speaker_clip_ids:
-        raise ValueError("speaker cameras changed since the analysis; analyse again")
-    wide = next((c for c in project.clips if c.role is ClipRole.WIDE), None)
-    shots = plan_shots(analysis.activity, params, has_wide=wide is not None)
-    segments = shots_to_segments(
+    try:
+        layout = resolve_layout(project)
+        mics = layout.mic_keys
+    except LayoutError as exc:
+        raise ValueError(str(exc)) from exc
+    if mics != analysis.mic_keys:
+        raise ValueError("speakers or their mics changed since the analysis; analyse again")
+    cameras, camera_clips = switch_cameras(project, layout, analysis)
+    shots = plan_camera_shots(analysis.activity, cameras, params)
+    segments = camera_shots_to_segments(
         shots,
         analysis_rate=analysis.activity.frame_rate,
         fps=project.output.fps,
         duration_frames=duration_frames,
-        speaker_clips=[c.id for c in speakers],
-        wide_clip=wide.id if wide else None,
+        camera_clips=camera_clips,
     )
     cutlist = CutList(
         project_id=project.id,

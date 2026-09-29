@@ -18,9 +18,22 @@ from multicam_api.schemas import (
     ProjectOut,
     ProjectSummary,
 )
-from multicam_api.services.projects import file_status, latest_cutlist
+from multicam_api.services.projects import (
+    file_status,
+    latest_cutlist,
+    project_to_engine,
+    switch_settings,
+)
+from multicam_engine.layout import LayoutError, resolve_layout, role_layout
 from multicam_engine.models import CutList, OutputSettings
-from multicam_engine.models.project import ClipRole, MediaInfo, Preset, SyncResult
+from multicam_engine.models.project import (
+    CameraLayout,
+    ClipRole,
+    MediaInfo,
+    Preset,
+    Speaker,
+    SyncResult,
+)
 
 
 def clip_out(row: ClipRow, reference_clip_id: str | None) -> ClipOut:
@@ -38,8 +51,18 @@ def clip_out(row: ClipRow, reference_clip_id: str | None) -> ClipOut:
     )
 
 
+def effective_layout(row: ProjectRow) -> tuple[list[Speaker], list[CameraLayout]]:
+    project = project_to_engine(row)
+    try:
+        layout = resolve_layout(project)
+    except LayoutError:  # e.g. only B-roll so far: show what the roles imply
+        return role_layout(project)
+    return layout.speakers, layout.all_cameras
+
+
 def project_out(row: ProjectRow, session: Session) -> ProjectOut:
     latest = latest_cutlist(session, row.id)
+    speakers, cameras = effective_layout(row)
     return ProjectOut(
         id=UUID(row.id),
         name=row.name,
@@ -48,6 +71,11 @@ def project_out(row: ProjectRow, session: Session) -> ProjectOut:
         output_custom=row.output_custom,
         reference_clip_id=UUID(row.reference_clip_id) if row.reference_clip_id else None,
         clips=[clip_out(c, row.reference_clip_id) for c in row.clips],
+        speakers=speakers,
+        cameras=cameras,
+        layout_custom=bool(row.layout),
+        switch=switch_settings(row),
+        switch_custom=row.switch is not None,
         cutlist_version=latest.version if latest else None,
         created_at=row.created_at,
         updated_at=row.updated_at,

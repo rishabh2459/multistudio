@@ -61,6 +61,11 @@ class ProjectRow(Base):
     output: Mapped[dict[str, Any]]  # OutputSettings
     output_custom: Mapped[bool] = mapped_column(Boolean, default=False)
     reference_clip_id: Mapped[str | None] = mapped_column(String(36))
+    #: Explicit people + camera layout ({"speakers": [...], "cameras": [...]});
+    #: None = derived from clip roles.
+    layout: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    #: Custom switching settings (SwitchSettings); None = the preset's values.
+    switch: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
 
@@ -159,3 +164,14 @@ class StepCacheRow(Base):
     input_hash: Mapped[str] = mapped_column(String(64))
     result: Mapped[dict[str, Any]]
     created_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+
+
+class UserPresetRow(Base):
+    """A named editing style saved by the user (SwitchSettings JSON)."""
+
+    __tablename__ = "user_presets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(60), unique=True)
+    settings: Mapped[dict[str, Any]]
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)

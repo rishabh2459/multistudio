@@ -177,6 +177,7 @@ export function SettingsForm() {
               <option value="calm">Calm</option>
               <option value="balanced">Balanced</option>
               <option value="dynamic">Dynamic</option>
+              <option value="punchy">Punchy (reels)</option>
             </Select>
           </Field>
           <Field id="s-theme" label="Appearance">

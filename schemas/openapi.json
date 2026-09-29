@@ -80,6 +80,82 @@
         "title": "AudioMode",
         "type": "string"
       },
+      "CameraLayout-Input": {
+        "additionalProperties": false,
+        "description": "One camera (clip), what kind of shot it is and who is visible in it.",
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "covers": {
+            "description": "Speaker ids in frame",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Covers",
+            "type": "array"
+          },
+          "priority": {
+            "default": 1.0,
+            "description": "User bias for this angle",
+            "maximum": 1.5,
+            "minimum": 0.5,
+            "title": "Priority",
+            "type": "number"
+          },
+          "shot": {
+            "$ref": "#/components/schemas/ShotType"
+          }
+        },
+        "required": [
+          "clip_id",
+          "shot"
+        ],
+        "title": "CameraLayout",
+        "type": "object"
+      },
+      "CameraLayout-Output": {
+        "additionalProperties": false,
+        "description": "One camera (clip), what kind of shot it is and who is visible in it.",
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "covers": {
+            "description": "Speaker ids in frame",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Covers",
+            "type": "array"
+          },
+          "priority": {
+            "default": 1.0,
+            "description": "User bias for this angle",
+            "maximum": 1.5,
+            "minimum": 0.5,
+            "title": "Priority",
+            "type": "number"
+          },
+          "shot": {
+            "$ref": "#/components/schemas/ShotType"
+          }
+        },
+        "required": [
+          "clip_id",
+          "shot",
+          "covers",
+          "priority"
+        ],
+        "title": "CameraLayout",
+        "type": "object"
+      },
       "ClipCreate": {
         "additionalProperties": false,
         "properties": {
@@ -908,10 +984,106 @@
         "enum": [
           "calm",
           "balanced",
-          "dynamic"
+          "dynamic",
+          "punchy"
         ],
         "title": "Preset",
         "type": "string"
+      },
+      "PresetFile-Input": {
+        "additionalProperties": false,
+        "description": "Contents of a ``.mcpreset.json`` file (export / import).",
+        "properties": {
+          "format": {
+            "const": "multicam-preset",
+            "default": "multicam-preset",
+            "title": "Format",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/SwitchSettings-Input"
+          },
+          "version": {
+            "const": 1,
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "settings"
+        ],
+        "title": "PresetFile",
+        "type": "object"
+      },
+      "PresetFile-Output": {
+        "additionalProperties": false,
+        "description": "Contents of a ``.mcpreset.json`` file (export / import).",
+        "properties": {
+          "format": {
+            "const": "multicam-preset",
+            "default": "multicam-preset",
+            "title": "Format",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/SwitchSettings-Output"
+          },
+          "version": {
+            "const": 1,
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "settings"
+        ],
+        "title": "PresetFile",
+        "type": "object"
+      },
+      "PresetOut": {
+        "additionalProperties": false,
+        "properties": {
+          "builtin": {
+            "title": "Builtin",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Built-in preset name, or the user preset's id",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/SwitchSettings-Output"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "builtin",
+          "settings"
+        ],
+        "title": "PresetOut",
+        "type": "object"
       },
       "ProjectCreate": {
         "additionalProperties": false,
@@ -944,9 +1116,46 @@
         "title": "ProjectCreate",
         "type": "object"
       },
+      "ProjectLayout": {
+        "additionalProperties": false,
+        "description": "Who is recorded by which mic, and who is visible in which camera.",
+        "properties": {
+          "cameras": {
+            "description": "Clips without an entry are B-roll (never auto-selected)",
+            "items": {
+              "$ref": "#/components/schemas/CameraLayout-Input"
+            },
+            "maxItems": 10,
+            "title": "Cameras",
+            "type": "array"
+          },
+          "speakers": {
+            "items": {
+              "$ref": "#/components/schemas/Speaker-Input"
+            },
+            "maxItems": 10,
+            "title": "Speakers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "speakers",
+          "cameras"
+        ],
+        "title": "ProjectLayout",
+        "type": "object"
+      },
       "ProjectOut": {
         "additionalProperties": false,
         "properties": {
+          "cameras": {
+            "description": "Effective layout of every clip",
+            "items": {
+              "$ref": "#/components/schemas/CameraLayout-Output"
+            },
+            "title": "Cameras",
+            "type": "array"
+          },
           "clips": {
             "items": {
               "$ref": "#/components/schemas/ClipOut"
@@ -975,6 +1184,10 @@
             "title": "Id",
             "type": "string"
           },
+          "layout_custom": {
+            "title": "Layout Custom",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1001,6 +1214,22 @@
             ],
             "title": "Reference Clip Id"
           },
+          "speakers": {
+            "description": "Effective speakers (explicit or from roles)",
+            "items": {
+              "$ref": "#/components/schemas/Speaker-Output"
+            },
+            "title": "Speakers",
+            "type": "array"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/SwitchSettings-Output",
+            "description": "Effective switching settings"
+          },
+          "switch_custom": {
+            "title": "Switch Custom",
+            "type": "boolean"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -1015,6 +1244,11 @@
           "output_custom",
           "reference_clip_id",
           "clips",
+          "speakers",
+          "cameras",
+          "layout_custom",
+          "switch",
+          "switch_custom",
           "cutlist_version",
           "created_at",
           "updated_at"
@@ -1078,6 +1312,17 @@
       "ProjectUpdate": {
         "additionalProperties": false,
         "properties": {
+          "layout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectLayout"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explicit camera layout"
+          },
           "name": {
             "anyOf": [
               {
@@ -1109,7 +1354,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Also drops custom switch settings unless 'switch' is given"
           },
           "reference_clip_id": {
             "anyOf": [
@@ -1122,6 +1368,23 @@
               }
             ],
             "title": "Reference Clip Id"
+          },
+          "reset_layout": {
+            "default": false,
+            "description": "Go back to the role-derived layout",
+            "title": "Reset Layout",
+            "type": "boolean"
+          },
+          "switch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SwitchSettings-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Custom switching (sliders / a user preset)"
           }
         },
         "title": "ProjectUpdate",
@@ -1364,6 +1627,20 @@
             "title": "Clip Id",
             "type": "string"
           },
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How sure auto-edit is about this cut",
+            "title": "Confidence"
+          },
           "end_frame": {
             "description": "Exclusive",
             "exclusiveMinimum": 0.0,
@@ -1417,6 +1694,20 @@
             "title": "Clip Id",
             "type": "string"
           },
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How sure auto-edit is about this cut",
+            "title": "Confidence"
+          },
           "end_frame": {
             "description": "Exclusive",
             "exclusiveMinimum": 0.0,
@@ -1460,7 +1751,8 @@
           "clip_id",
           "source",
           "reframe",
-          "reframe_vertical"
+          "reframe_vertical",
+          "confidence"
         ],
         "title": "Segment",
         "type": "object"
@@ -1472,6 +1764,271 @@
         ],
         "title": "SegmentSource",
         "type": "string"
+      },
+      "ShotType": {
+        "description": "What a camera shows. Switching understands every layout (D74).",
+        "enum": [
+          "solo",
+          "two",
+          "three",
+          "four",
+          "wide",
+          "broll"
+        ],
+        "title": "ShotType",
+        "type": "string"
+      },
+      "Speaker-Input": {
+        "additionalProperties": false,
+        "description": "A person in the recording and the mic that hears them best.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mic_channel": {
+            "anyOf": [
+              {
+                "maximum": 31.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Channel of the mic in a multi-channel file",
+            "title": "Mic Channel"
+          },
+          "mic_clip_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Clip whose audio is this person's mic; None: single-mic mode",
+            "title": "Mic Clip Id"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "Speaker",
+        "type": "object"
+      },
+      "Speaker-Output": {
+        "additionalProperties": false,
+        "description": "A person in the recording and the mic that hears them best.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mic_channel": {
+            "anyOf": [
+              {
+                "maximum": 31.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Channel of the mic in a multi-channel file",
+            "title": "Mic Channel"
+          },
+          "mic_clip_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Clip whose audio is this person's mic; None: single-mic mode",
+            "title": "Mic Clip Id"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mic_clip_id",
+          "mic_channel"
+        ],
+        "title": "Speaker",
+        "type": "object"
+      },
+      "SwitchSettings-Input": {
+        "additionalProperties": false,
+        "description": "``SwitchParams`` as a validated, serialisable model (user presets, API).",
+        "properties": {
+          "bridge_gap_s": {
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Bridge Gap S",
+            "type": "number"
+          },
+          "crosstalk_to_wide_s": {
+            "maximum": 30.0,
+            "minimum": 0.1,
+            "title": "Crosstalk To Wide S",
+            "type": "number"
+          },
+          "group_reward": {
+            "default": 0.7,
+            "maximum": 0.95,
+            "minimum": 0.0,
+            "title": "Group Reward",
+            "type": "number"
+          },
+          "lead_s": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Lead S",
+            "type": "number"
+          },
+          "max_shot_s": {
+            "default": 0.0,
+            "description": "0 = no limit",
+            "maximum": 120.0,
+            "minimum": 0.0,
+            "title": "Max Shot S",
+            "type": "number"
+          },
+          "min_shot_s": {
+            "maximum": 30.0,
+            "minimum": 0.3,
+            "title": "Min Shot S",
+            "type": "number"
+          },
+          "silence_to_wide_s": {
+            "maximum": 60.0,
+            "minimum": 0.1,
+            "title": "Silence To Wide S",
+            "type": "number"
+          },
+          "switch_delay_s": {
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Switch Delay S",
+            "type": "number"
+          },
+          "wide_frequency": {
+            "default": 0.3,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Wide Frequency",
+            "type": "number"
+          }
+        },
+        "required": [
+          "min_shot_s",
+          "switch_delay_s",
+          "bridge_gap_s",
+          "lead_s",
+          "crosstalk_to_wide_s",
+          "silence_to_wide_s"
+        ],
+        "title": "SwitchSettings",
+        "type": "object"
+      },
+      "SwitchSettings-Output": {
+        "additionalProperties": false,
+        "description": "``SwitchParams`` as a validated, serialisable model (user presets, API).",
+        "properties": {
+          "bridge_gap_s": {
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Bridge Gap S",
+            "type": "number"
+          },
+          "crosstalk_to_wide_s": {
+            "maximum": 30.0,
+            "minimum": 0.1,
+            "title": "Crosstalk To Wide S",
+            "type": "number"
+          },
+          "group_reward": {
+            "default": 0.7,
+            "maximum": 0.95,
+            "minimum": 0.0,
+            "title": "Group Reward",
+            "type": "number"
+          },
+          "lead_s": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Lead S",
+            "type": "number"
+          },
+          "max_shot_s": {
+            "default": 0.0,
+            "description": "0 = no limit",
+            "maximum": 120.0,
+            "minimum": 0.0,
+            "title": "Max Shot S",
+            "type": "number"
+          },
+          "min_shot_s": {
+            "maximum": 30.0,
+            "minimum": 0.3,
+            "title": "Min Shot S",
+            "type": "number"
+          },
+          "silence_to_wide_s": {
+            "maximum": 60.0,
+            "minimum": 0.1,
+            "title": "Silence To Wide S",
+            "type": "number"
+          },
+          "switch_delay_s": {
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Switch Delay S",
+            "type": "number"
+          },
+          "wide_frequency": {
+            "default": 0.3,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Wide Frequency",
+            "type": "number"
+          }
+        },
+        "required": [
+          "min_shot_s",
+          "switch_delay_s",
+          "bridge_gap_s",
+          "lead_s",
+          "crosstalk_to_wide_s",
+          "silence_to_wide_s",
+          "max_shot_s",
+          "wide_frequency",
+          "group_reward"
+        ],
+        "title": "SwitchSettings",
+        "type": "object"
       },
       "SyncResult": {
         "additionalProperties": false,
@@ -1709,6 +2266,26 @@
           "proxies_ready"
         ],
         "title": "TimelineOut",
+        "type": "object"
+      },
+      "UserPresetIn": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/SwitchSettings-Input"
+          }
+        },
+        "required": [
+          "name",
+          "settings"
+        ],
+        "title": "UserPresetIn",
         "type": "object"
       },
       "ValidationError": {
@@ -2261,6 +2838,190 @@
         "summary": "Retry Job",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/presets": {
+      "get": {
+        "operationId": "list_presets_api_presets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PresetOut"
+                  },
+                  "title": "Response List Presets Api Presets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Presets",
+        "tags": [
+          "presets"
+        ]
+      },
+      "post": {
+        "operationId": "create_preset_api_presets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPresetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Preset",
+        "tags": [
+          "presets"
+        ]
+      }
+    },
+    "/api/presets/import": {
+      "post": {
+        "description": "Import a ``.mcpreset.json``. A name clash gets \" (2)\", \" (3)\" ... appended.",
+        "operationId": "import_preset_api_presets_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresetFile-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Preset",
+        "tags": [
+          "presets"
+        ]
+      }
+    },
+    "/api/presets/{preset_id}": {
+      "delete": {
+        "operationId": "delete_preset_api_presets__preset_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "preset_id",
+            "required": true,
+            "schema": {
+              "title": "Preset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Preset",
+        "tags": [
+          "presets"
+        ]
+      }
+    },
+    "/api/presets/{preset_id}/export": {
+      "get": {
+        "description": "The ``.mcpreset.json`` contents of a built-in or user preset.",
+        "operationId": "export_preset_api_presets__preset_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "preset_id",
+            "required": true,
+            "schema": {
+              "title": "Preset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresetFile-Output"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Preset",
+        "tags": [
+          "presets"
         ]
       }
     },

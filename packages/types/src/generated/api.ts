@@ -178,6 +178,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Presets */
+        get: operations["list_presets_api_presets_get"];
+        put?: never;
+        /** Create Preset */
+        post: operations["create_preset_api_presets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/presets/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Preset
+         * @description Import a ``.mcpreset.json``. A name clash gets " (2)", " (3)" ... appended.
+         */
+        post: operations["import_preset_api_presets_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/presets/{preset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Preset */
+        delete: operations["delete_preset_api_presets__preset_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/presets/{preset_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Preset
+         * @description The ``.mcpreset.json`` contents of a built-in or user preset.
+         */
+        get: operations["export_preset_api_presets__preset_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects": {
         parameters: {
             query?: never;
@@ -460,6 +535,52 @@ export interface components {
          * @enum {string}
          */
         AudioMode: "mix" | "single";
+        /**
+         * CameraLayout
+         * @description One camera (clip), what kind of shot it is and who is visible in it.
+         */
+        "CameraLayout-Input": {
+            /**
+             * Clip Id
+             * Format: uuid
+             */
+            clip_id: string;
+            /**
+             * Covers
+             * @description Speaker ids in frame
+             */
+            covers?: string[];
+            /**
+             * Priority
+             * @description User bias for this angle
+             * @default 1
+             */
+            priority?: number;
+            shot: components["schemas"]["ShotType"];
+        };
+        /**
+         * CameraLayout
+         * @description One camera (clip), what kind of shot it is and who is visible in it.
+         */
+        "CameraLayout-Output": {
+            /**
+             * Clip Id
+             * Format: uuid
+             */
+            clip_id: string;
+            /**
+             * Covers
+             * @description Speaker ids in frame
+             */
+            covers: string[];
+            /**
+             * Priority
+             * @description User bias for this angle
+             * @default 1
+             */
+            priority: number;
+            shot: components["schemas"]["ShotType"];
+        };
         /** ClipCreate */
         ClipCreate: {
             /**
@@ -783,7 +904,62 @@ export interface components {
          * Preset
          * @enum {string}
          */
-        Preset: "calm" | "balanced" | "dynamic";
+        Preset: "calm" | "balanced" | "dynamic" | "punchy";
+        /**
+         * PresetFile
+         * @description Contents of a ``.mcpreset.json`` file (export / import).
+         */
+        "PresetFile-Input": {
+            /**
+             * Format
+             * @default multicam-preset
+             * @constant
+             */
+            format?: "multicam-preset";
+            /** Name */
+            name: string;
+            settings: components["schemas"]["SwitchSettings-Input"];
+            /**
+             * Version
+             * @default 1
+             * @constant
+             */
+            version?: 1;
+        };
+        /**
+         * PresetFile
+         * @description Contents of a ``.mcpreset.json`` file (export / import).
+         */
+        "PresetFile-Output": {
+            /**
+             * Format
+             * @default multicam-preset
+             * @constant
+             */
+            format?: "multicam-preset";
+            /** Name */
+            name: string;
+            settings: components["schemas"]["SwitchSettings-Output"];
+            /**
+             * Version
+             * @default 1
+             * @constant
+             */
+            version?: 1;
+        };
+        /** PresetOut */
+        PresetOut: {
+            /** Builtin */
+            builtin: boolean;
+            /**
+             * Id
+             * @description Built-in preset name, or the user preset's id
+             */
+            id: string;
+            /** Name */
+            name: string;
+            settings: components["schemas"]["SwitchSettings-Output"];
+        };
         /** ProjectCreate */
         ProjectCreate: {
             /** Name */
@@ -793,8 +969,26 @@ export interface components {
             /** @default balanced */
             preset?: components["schemas"]["Preset"];
         };
+        /**
+         * ProjectLayout
+         * @description Who is recorded by which mic, and who is visible in which camera.
+         */
+        ProjectLayout: {
+            /**
+             * Cameras
+             * @description Clips without an entry are B-roll (never auto-selected)
+             */
+            cameras: components["schemas"]["CameraLayout-Input"][];
+            /** Speakers */
+            speakers: components["schemas"]["Speaker-Input"][];
+        };
         /** ProjectOut */
         ProjectOut: {
+            /**
+             * Cameras
+             * @description Effective layout of every clip
+             */
+            cameras: components["schemas"]["CameraLayout-Output"][];
             /** Clips */
             clips: components["schemas"]["ClipOut"][];
             /**
@@ -809,6 +1003,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Layout Custom */
+            layout_custom: boolean;
             /** Name */
             name: string;
             output: components["schemas"]["OutputSettings"];
@@ -817,6 +1013,15 @@ export interface components {
             preset: components["schemas"]["Preset"];
             /** Reference Clip Id */
             reference_clip_id: string | null;
+            /**
+             * Speakers
+             * @description Effective speakers (explicit or from roles)
+             */
+            speakers: components["schemas"]["Speaker-Output"][];
+            /** @description Effective switching settings */
+            switch: components["schemas"]["SwitchSettings-Output"];
+            /** Switch Custom */
+            switch_custom: boolean;
             /**
              * Updated At
              * Format: date-time
@@ -850,12 +1055,23 @@ export interface components {
         };
         /** ProjectUpdate */
         ProjectUpdate: {
+            /** @description Explicit camera layout */
+            layout?: components["schemas"]["ProjectLayout"] | null;
             /** Name */
             name?: string | null;
             output?: components["schemas"]["OutputSettings"] | null;
+            /** @description Also drops custom switch settings unless 'switch' is given */
             preset?: components["schemas"]["Preset"] | null;
             /** Reference Clip Id */
             reference_clip_id?: string | null;
+            /**
+             * Reset Layout
+             * @description Go back to the role-derived layout
+             * @default false
+             */
+            reset_layout?: boolean;
+            /** @description Custom switching (sliders / a user preset) */
+            switch?: components["schemas"]["SwitchSettings-Input"] | null;
         };
         /**
          * Rational
@@ -977,6 +1193,11 @@ export interface components {
              */
             clip_id: string;
             /**
+             * Confidence
+             * @description How sure auto-edit is about this cut
+             */
+            confidence?: number | null;
+            /**
              * End Frame
              * @description Exclusive
              */
@@ -997,6 +1218,11 @@ export interface components {
              */
             clip_id: string;
             /**
+             * Confidence
+             * @description How sure auto-edit is about this cut
+             */
+            confidence: number | null;
+            /**
              * End Frame
              * @description Exclusive
              */
@@ -1014,6 +1240,126 @@ export interface components {
          * @enum {string}
          */
         SegmentSource: "auto" | "manual";
+        /**
+         * ShotType
+         * @description What a camera shows. Switching understands every layout (D74).
+         * @enum {string}
+         */
+        ShotType: "solo" | "two" | "three" | "four" | "wide" | "broll";
+        /**
+         * Speaker
+         * @description A person in the recording and the mic that hears them best.
+         */
+        "Speaker-Input": {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id?: string;
+            /**
+             * Mic Channel
+             * @description Channel of the mic in a multi-channel file
+             */
+            mic_channel?: number | null;
+            /**
+             * Mic Clip Id
+             * @description Clip whose audio is this person's mic; None: single-mic mode
+             */
+            mic_clip_id?: string | null;
+            /** Name */
+            name: string;
+        };
+        /**
+         * Speaker
+         * @description A person in the recording and the mic that hears them best.
+         */
+        "Speaker-Output": {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Mic Channel
+             * @description Channel of the mic in a multi-channel file
+             */
+            mic_channel: number | null;
+            /**
+             * Mic Clip Id
+             * @description Clip whose audio is this person's mic; None: single-mic mode
+             */
+            mic_clip_id: string | null;
+            /** Name */
+            name: string;
+        };
+        /**
+         * SwitchSettings
+         * @description ``SwitchParams`` as a validated, serialisable model (user presets, API).
+         */
+        "SwitchSettings-Input": {
+            /** Bridge Gap S */
+            bridge_gap_s: number;
+            /** Crosstalk To Wide S */
+            crosstalk_to_wide_s: number;
+            /**
+             * Group Reward
+             * @default 0.7
+             */
+            group_reward?: number;
+            /** Lead S */
+            lead_s: number;
+            /**
+             * Max Shot S
+             * @description 0 = no limit
+             * @default 0
+             */
+            max_shot_s?: number;
+            /** Min Shot S */
+            min_shot_s: number;
+            /** Silence To Wide S */
+            silence_to_wide_s: number;
+            /** Switch Delay S */
+            switch_delay_s: number;
+            /**
+             * Wide Frequency
+             * @default 0.3
+             */
+            wide_frequency?: number;
+        };
+        /**
+         * SwitchSettings
+         * @description ``SwitchParams`` as a validated, serialisable model (user presets, API).
+         */
+        "SwitchSettings-Output": {
+            /** Bridge Gap S */
+            bridge_gap_s: number;
+            /** Crosstalk To Wide S */
+            crosstalk_to_wide_s: number;
+            /**
+             * Group Reward
+             * @default 0.7
+             */
+            group_reward: number;
+            /** Lead S */
+            lead_s: number;
+            /**
+             * Max Shot S
+             * @description 0 = no limit
+             * @default 0
+             */
+            max_shot_s: number;
+            /** Min Shot S */
+            min_shot_s: number;
+            /** Silence To Wide S */
+            silence_to_wide_s: number;
+            /** Switch Delay S */
+            switch_delay_s: number;
+            /**
+             * Wide Frequency
+             * @default 0.3
+             */
+            wide_frequency: number;
+        };
         /**
          * SyncResult
          * @description How a clip lines up with the project's reference clip.
@@ -1123,6 +1469,12 @@ export interface components {
              * @description Every clip has a preview copy
              */
             proxies_ready: boolean;
+        };
+        /** UserPresetIn */
+        UserPresetIn: {
+            /** Name */
+            name: string;
+            settings: components["schemas"]["SwitchSettings-Input"];
         };
         /** ValidationError */
         ValidationError: {
@@ -1492,6 +1844,152 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_presets_api_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetOut"][];
+                };
+            };
+        };
+    };
+    create_preset_api_presets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPresetIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_preset_api_presets_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresetFile-Input"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_preset_api_presets__preset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_preset_api_presets__preset_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetFile-Output"];
                 };
             };
             /** @description Validation Error */

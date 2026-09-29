@@ -45,6 +45,42 @@
       "title": "AudioMode",
       "type": "string"
     },
+    "CameraLayout": {
+      "additionalProperties": false,
+      "description": "One camera (clip), what kind of shot it is and who is visible in it.",
+      "properties": {
+        "clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "covers": {
+          "description": "Speaker ids in frame",
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "priority": {
+          "default": 1.0,
+          "description": "User bias for this angle",
+          "maximum": 1.5,
+          "minimum": 0.5,
+          "type": "number"
+        },
+        "shot": {
+          "$ref": "#/$defs/ShotType"
+        }
+      },
+      "required": [
+        "clip_id",
+        "shot",
+        "covers",
+        "priority"
+      ],
+      "title": "CameraLayout",
+      "type": "object"
+    },
     "Clip": {
       "additionalProperties": false,
       "properties": {
@@ -400,7 +436,8 @@
       "enum": [
         "calm",
         "balanced",
-        "dynamic"
+        "dynamic",
+        "punchy"
       ],
       "title": "Preset",
       "type": "string"
@@ -408,6 +445,13 @@
     "Project": {
       "additionalProperties": false,
       "properties": {
+        "cameras": {
+          "items": {
+            "$ref": "#/$defs/CameraLayout"
+          },
+          "maxItems": 10,
+          "type": "array"
+        },
         "clips": {
           "items": {
             "$ref": "#/$defs/Clip"
@@ -450,6 +494,13 @@
           "const": 1,
           "default": 1,
           "type": "integer"
+        },
+        "speakers": {
+          "items": {
+            "$ref": "#/$defs/Speaker"
+          },
+          "maxItems": 10,
+          "type": "array"
         }
       },
       "required": [
@@ -460,7 +511,9 @@
         "preset",
         "clips",
         "reference_clip_id",
-        "created_at"
+        "created_at",
+        "speakers",
+        "cameras"
       ],
       "title": "Project",
       "type": "object"
@@ -607,6 +660,20 @@
           "format": "uuid",
           "type": "string"
         },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How sure auto-edit is about this cut"
+        },
         "end_frame": {
           "description": "Exclusive",
           "exclusiveMinimum": 0,
@@ -650,7 +717,8 @@
         "clip_id",
         "source",
         "reframe",
-        "reframe_vertical"
+        "reframe_vertical",
+        "confidence"
       ],
       "title": "Segment",
       "type": "object"
@@ -662,6 +730,69 @@
       ],
       "title": "SegmentSource",
       "type": "string"
+    },
+    "ShotType": {
+      "description": "What a camera shows. Switching understands every layout (D74).",
+      "enum": [
+        "solo",
+        "two",
+        "three",
+        "four",
+        "wide",
+        "broll"
+      ],
+      "title": "ShotType",
+      "type": "string"
+    },
+    "Speaker": {
+      "additionalProperties": false,
+      "description": "A person in the recording and the mic that hears them best.",
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "mic_channel": {
+          "anyOf": [
+            {
+              "maximum": 31,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Channel of the mic in a multi-channel file"
+        },
+        "mic_clip_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clip whose audio is this person's mic; None: single-mic mode"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "mic_clip_id",
+        "mic_channel"
+      ],
+      "title": "Speaker",
+      "type": "object"
     },
     "SpeechTurn": {
       "additionalProperties": false,

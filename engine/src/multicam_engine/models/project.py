@@ -13,6 +13,9 @@ from multicam_engine.models._base import StrictModel
 from multicam_engine.models.time import Rational
 
 SCHEMA_VERSION: Final = 1
+#: Most cameras / mics one project may have (AutoPod parity: 10 + 10).
+MAX_CAMERAS: Final = 10
+MAX_SPEAKERS: Final = 10
 
 
 class ClipRole(StrEnum):
@@ -25,6 +28,40 @@ class Preset(StrEnum):
     CALM = "calm"
     BALANCED = "balanced"
     DYNAMIC = "dynamic"
+    PUNCHY = "punchy"  # reels / high energy: short shots, forced variety
+
+
+class ShotType(StrEnum):
+    """What a camera shows. Switching understands every layout (D74)."""
+
+    SOLO = "solo"  # one person
+    TWO = "two"  # two people
+    THREE = "three"
+    FOUR = "four"
+    WIDE = "wide"  # everyone
+    BROLL = "broll"  # never auto-selected
+
+
+class Speaker(StrictModel):
+    """A person in the recording and the mic that hears them best."""
+
+    id: UUID = Field(default_factory=uuid4)
+    name: str = Field(min_length=1, max_length=100)
+    mic_clip_id: UUID | None = Field(
+        default=None, description="Clip whose audio is this person's mic; None: single-mic mode"
+    )
+    mic_channel: int | None = Field(
+        default=None, ge=0, le=31, description="Channel of the mic in a multi-channel file"
+    )
+
+
+class CameraLayout(StrictModel):
+    """One camera (clip), what kind of shot it is and who is visible in it."""
+
+    clip_id: UUID
+    shot: ShotType
+    covers: list[UUID] = Field(default_factory=list, description="Speaker ids in frame")
+    priority: float = Field(default=1.0, ge=0.5, le=1.5, description="User bias for this angle")
 
 
 class MediaInfo(StrictModel):
@@ -104,6 +141,10 @@ class Project(StrictModel):
     clips: list[Clip] = Field(default_factory=list)
     reference_clip_id: UUID | None = None
     created_at: AwareDatetime = Field(default_factory=_utc_now)
+    #: Explicit people and camera layout. Empty: derived from clip roles
+    #: (see ``multicam_engine.layout.resolve_layout``).
+    speakers: list[Speaker] = Field(default_factory=list, max_length=MAX_SPEAKERS)
+    cameras: list[CameraLayout] = Field(default_factory=list, max_length=MAX_CAMERAS)
 
     @model_validator(mode="after")
     def _check_clips(self) -> Project:
@@ -112,6 +153,23 @@ class Project(StrictModel):
             raise ValueError("clip ids must be unique")
         if self.reference_clip_id is not None and self.reference_clip_id not in ids:
             raise ValueError("reference_clip_id must be one of the project's clips")
+        known, people = set(ids), {s.id for s in self.speakers}
+        if len(people) != len(self.speakers):
+            raise ValueError("speaker ids must be unique")
+        for spk in self.speakers:
+            if spk.mic_clip_id is not None and spk.mic_clip_id not in known:
+                raise ValueError(f"speaker {spk.name}: mic clip is not in the project")
+        seen: set[UUID] = set()
+        for cam in self.cameras:
+            if cam.clip_id not in known:
+                raise ValueError("camera layout refers to a clip that is not in the project")
+            if cam.clip_id in seen:
+                raise ValueError("each clip may have only one camera layout")
+            seen.add(cam.clip_id)
+            if not set(cam.covers) <= people:
+                raise ValueError("camera layout covers an unknown speaker")
+        if self.cameras and not self.speakers:
+            raise ValueError("a camera layout needs the speakers it refers to")
         return self
 
     def clip(self, clip_id: UUID) -> Clip:

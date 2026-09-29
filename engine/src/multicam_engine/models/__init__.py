@@ -16,21 +16,29 @@ from multicam_engine.models.cutlist import (
     SegmentSource,
 )
 from multicam_engine.models.project import (
+    MAX_CAMERAS,
+    MAX_SPEAKERS,
     SCHEMA_VERSION,
+    CameraLayout,
     Clip,
     ClipRole,
     MediaInfo,
     OutputSettings,
     Preset,
     Project,
+    ShotType,
+    Speaker,
     SyncResult,
 )
 from multicam_engine.models.time import Rational, Rounding
 
 __all__ = [
+    "MAX_CAMERAS",
+    "MAX_SPEAKERS",
     "SCHEMA_VERSION",
     "AudioConfig",
     "AudioMode",
+    "CameraLayout",
     "Clip",
     "ClipRole",
     "CutList",
@@ -46,5 +54,7 @@ __all__ = [
     "Rounding",
     "Segment",
     "SegmentSource",
+    "ShotType",
+    "Speaker",
     "SyncResult",
 ]

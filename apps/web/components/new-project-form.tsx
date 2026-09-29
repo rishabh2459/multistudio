@@ -16,6 +16,7 @@ export const PRESET_HELP: Record<Preset, string> = {
   calm: 'Few, long shots. Good for interviews and lectures.',
   balanced: 'A natural rhythm for most podcasts.',
   dynamic: 'Quicker cuts and more reactions.',
+  punchy: 'Short, varied shots for reels and high-energy clips.',
 };
 
 export function NewProjectForm() {
@@ -63,6 +64,7 @@ export function NewProjectForm() {
               <option value="calm">Calm</option>
               <option value="balanced">Balanced</option>
               <option value="dynamic">Dynamic</option>
+              <option value="punchy">Punchy (reels)</option>
             </Select>
             <p className="text-xs text-muted-foreground">{PRESET_HELP[preset]}</p>
           </div>

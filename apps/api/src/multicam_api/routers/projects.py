@@ -10,7 +10,9 @@ from sqlalchemy import select
 from multicam_api.db.models import JobRow, ProjectRow
 from multicam_api.routers._common import UNPROCESSABLE, SessionDep, StateDep, project_or_404
 from multicam_api.schemas import JobStatus, ProjectCreate, ProjectOut, ProjectSummary, ProjectUpdate
+from multicam_api.services.projects import project_to_engine
 from multicam_api.views import project_out, project_summary
+from multicam_engine.layout import LayoutError, resolve_layout
 from multicam_engine.models import OutputSettings
 from multicam_engine.models.time import FPS_29_97
 
@@ -51,6 +53,19 @@ def update_project(project_id: UUID, body: ProjectUpdate, session: SessionDep) -
         row.name = body.name
     if body.preset is not None:
         row.preset = body.preset.value
+        row.switch = None
+    if body.switch is not None:
+        row.switch = body.switch.model_dump(mode="json")
+    if body.reset_layout:
+        row.layout = None
+    if body.layout is not None:
+        previous = row.layout
+        row.layout = body.layout.model_dump(mode="json")
+        try:
+            resolve_layout(project_to_engine(row))
+        except (ValueError, LayoutError) as exc:
+            row.layout = previous
+            raise HTTPException(UNPROCESSABLE, f"invalid layout: {exc}") from exc
     if body.output is not None:
         row.output = body.output.model_dump(mode="json")
         row.output_custom = True

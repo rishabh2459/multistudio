@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 export type Theme = 'system' | 'light' | 'dark';
-export type Preset = 'calm' | 'balanced' | 'dynamic';
+export type Preset = 'calm' | 'balanced' | 'dynamic' | 'punchy';
 
 export interface Settings {
   /** Only used in a plain browser; the desktop app provides these itself. */

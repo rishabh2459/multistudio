@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -40,11 +41,14 @@ from multicam_api.services.projects import (
     latest_cutlist,
     project_to_engine,
     stable_hash,
+    stored_layout,
+    switch_params,
 )
-from multicam_engine.decide.presets import params_for
+from multicam_engine.decide.presets import PUNCH_FOR_PRESET, params_for
+from multicam_engine.layout import LayoutError, resolve_layout
 from multicam_engine.media.probe import ProbeError, probe
 from multicam_engine.models.cutlist import AudioConfig, AudioMode, CutList
-from multicam_engine.models.project import ClipRole, Project
+from multicam_engine.models.project import Project
 from multicam_engine.pipeline import Analysis, analyze_project, cutlist_from_analysis
 from multicam_engine.reframe import (
     Detections,
@@ -203,24 +207,36 @@ def run_sync(ctx: JobContext) -> Result:
 
 
 # ------------------------------------------------------------------ analyze
+def _layout_key(project: ProjectRow) -> Any:
+    """What of the layout affects analysis: the speakers and their mics."""
+    speakers, _ = stored_layout(project)
+    if not speakers:
+        return None  # role-derived (hash stays as it was before layouts existed)
+    return [(s.name, str(s.mic_clip_id), s.mic_channel) for s in speakers]
+
+
 def _analyze_hash(project: ProjectRow, vad: str) -> str:
-    return stable_hash(
-        {
-            "clips": [
-                {**clip_fingerprint(c), "role": c.role, "label": c.speaker_label, "sync": c.sync}
-                for c in project.clips
-            ],
-            "ref": project.reference_clip_id,
-            "output": project.output,
-            "vad": vad,
-        }
-    )
+    data: dict[str, Any] = {
+        "clips": [
+            {**clip_fingerprint(c), "role": c.role, "label": c.speaker_label, "sync": c.sync}
+            for c in project.clips
+        ],
+        "ref": project.reference_clip_id,
+        "output": project.output,
+        "vad": vad,
+    }
+    mics = _layout_key(project)
+    if mics is not None:
+        data["mics"] = mics
+    return stable_hash(data)
 
 
 def _require_synced(project: Project) -> None:
-    unsynced = [
-        Path(c.path).name for c in project.clips if c.role is ClipRole.SPEAKER and c.sync is None
-    ]
+    try:
+        mics = {clip_id for clip_id, _ in resolve_layout(project).mic_keys}
+    except (LayoutError, ValueError) as exc:
+        raise JobFailedError(str(exc)) from exc
+    unsynced = [Path(c.path).name for c in project.clips if c.id in mics and c.sync is None]
     if unsynced:
         raise JobFailedError(f"not synced yet: {', '.join(unsynced)} (run a sync job first)")
 
@@ -283,13 +299,22 @@ def decide(ctx: JobContext, params: DecideParams) -> Result:
         assert analyzed is not None
         project = project_to_engine(row)
         use_preset = params.preset or project.preset
-        input_hash = stable_hash(
-            {
-                "analysis": analyzed.input_hash,
-                "preset": use_preset.value,
-                "roles": [(c.id, c.role) for c in row.clips],
-            }
-        )
+        if params.switch is not None:
+            switch = params.switch.to_params()
+        elif params.preset is not None:
+            switch = params_for(params.preset)
+        else:
+            switch = switch_params(row)
+        hashed: dict[str, Any] = {
+            "analysis": analyzed.input_hash,
+            "preset": use_preset.value,
+            "roles": [(c.id, c.role) for c in row.clips],
+        }
+        if switch != params_for(use_preset):
+            hashed["switch"] = asdict(switch)
+        if row.layout:
+            hashed["layout"] = row.layout
+        input_hash = stable_hash(hashed)
         latest = latest_cutlist(s, str(ctx.project_id))
         if latest is not None and latest.input_hash == input_hash:
             return {
@@ -301,7 +326,7 @@ def decide(ctx: JobContext, params: DecideParams) -> Result:
         artifact = ctx.storage.artifact_path(ctx.project_id, str(analyzed.result["artifact"]))
     ctx.report("decide", 0.2, "choosing cameras")
     try:
-        cutlist = cutlist_from_analysis(project, Analysis.load(artifact), params_for(use_preset))
+        cutlist = cutlist_from_analysis(project, Analysis.load(artifact), switch)
     except ValueError as exc:
         raise JobFailedError(str(exc)) from exc
     with ctx.db.transaction() as s:
@@ -324,7 +349,7 @@ def run_auto(ctx: JobContext) -> Result:
     ctx.span(0.45, 0.9)
     analyzed = analyze(ctx, AnalyzeParams(vad=params.vad))
     ctx.span(0.9, 0.93 if params.framing else 1.0)
-    decided = decide(ctx, DecideParams(preset=params.preset))
+    decided = decide(ctx, DecideParams(preset=params.preset, switch=params.switch))
     result: Result = {"sync": synced, "analyze": analyzed, "decide": decided}
     if params.framing:
         ctx.span(0.93, 1.0)
@@ -473,10 +498,7 @@ def reframe(ctx: JobContext, params: ReframeParams) -> Result:
         if artifact.is_file():
             analysis = Analysis.load(artifact)
             activity, speaker_ids = analysis.activity, analysis.speaker_clip_ids
-    punch = (
-        params.punch
-        or {"calm": "calm", "balanced": "balanced", "dynamic": "dynamic"}[project.preset.value]
-    )
+    punch = params.punch or PUNCH_FOR_PRESET[project.preset]
     settings = ReframeSettings(punch=punch, horizontal=params.horizontal, vertical=params.vertical)
     framed, report = auto_reframe(
         project, cutlist, tracks, geoms, settings, activity=activity, speaker_ids=speaker_ids

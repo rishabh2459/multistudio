@@ -21,7 +21,7 @@ import { CutlistSummary } from './cutlist-summary';
 import { JobProgress } from './job-progress';
 
 type Vad = 'auto' | 'silero' | 'energy';
-const PRESETS: Preset[] = ['calm', 'balanced', 'dynamic'];
+const PRESETS: Preset[] = ['calm', 'balanced', 'dynamic', 'punchy'];
 const EDIT_KINDS = ['auto', 'probe', 'sync', 'analyze', 'decide', 'reframe'] as const;
 
 export function SyncTable({ project }: { project: Project }) {
@@ -156,6 +156,7 @@ export function ProcessingPanel({
                 <option value="calm">Calm</option>
                 <option value="balanced">Balanced</option>
                 <option value="dynamic">Dynamic</option>
+                <option value="punchy">Punchy (reels)</option>
               </Select>
               <p className="text-xs text-muted-foreground">{PRESET_HELP[preset]}</p>
             </div>

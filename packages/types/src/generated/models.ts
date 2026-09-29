@@ -12,8 +12,15 @@ export type AudioMode = "mix" | "single";
 export type RemovalKind = "filler" | "silence" | "manual";
 export type SegmentSource = "auto" | "manual";
 export type ClipRole = "speaker" | "wide" | "broll";
+/**
+ * What a camera shows. Switching understands every layout (D74).
+ *
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "ShotType".
+ */
+export type ShotType = "solo" | "two" | "three" | "four" | "wide" | "broll";
 export type ClipRole1 = "speaker" | "wide" | "broll";
-export type Preset = "calm" | "balanced" | "dynamic";
+export type Preset = "calm" | "balanced" | "dynamic" | "punchy";
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
  * via the `definition` "AudioMode".
@@ -28,7 +35,7 @@ export type ClipRole2 = "speaker" | "wide" | "broll";
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
  * via the `definition` "Preset".
  */
-export type Preset1 = "calm" | "balanced" | "dynamic";
+export type Preset1 = "calm" | "balanced" | "dynamic" | "punchy";
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
  * via the `definition` "SegmentSource".
@@ -102,6 +109,10 @@ export interface Removal {
  */
 export interface Segment {
   clip_id: string;
+  /**
+   * How sure auto-edit is about this cut
+   */
+  confidence: number | null;
   /**
    * Exclusive
    */
@@ -204,6 +215,42 @@ export interface SpeechTurn {
  * via the `definition` "Project".
  */
 export interface Project {
+  /**
+   * @maxItems 10
+   */
+  cameras:
+    | []
+    | [CameraLayout]
+    | [CameraLayout, CameraLayout]
+    | [CameraLayout, CameraLayout, CameraLayout]
+    | [CameraLayout, CameraLayout, CameraLayout, CameraLayout]
+    | [CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout]
+    | [CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout]
+    | [CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout]
+    | [CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout, CameraLayout]
+    | [
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout
+      ]
+    | [
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout,
+        CameraLayout
+      ];
   clips: Clip[];
   created_at: string;
   id: string;
@@ -212,6 +259,39 @@ export interface Project {
   preset: Preset;
   reference_clip_id: string | null;
   schema_version: 1;
+  /**
+   * @maxItems 10
+   */
+  speakers:
+    | []
+    | [Speaker]
+    | [Speaker, Speaker]
+    | [Speaker, Speaker, Speaker]
+    | [Speaker, Speaker, Speaker, Speaker]
+    | [Speaker, Speaker, Speaker, Speaker, Speaker]
+    | [Speaker, Speaker, Speaker, Speaker, Speaker, Speaker]
+    | [Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker]
+    | [Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker]
+    | [Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker]
+    | [Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker, Speaker];
+}
+/**
+ * One camera (clip), what kind of shot it is and who is visible in it.
+ *
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "CameraLayout".
+ */
+export interface CameraLayout {
+  clip_id: string;
+  /**
+   * Speaker ids in frame
+   */
+  covers: string[];
+  /**
+   * User bias for this angle
+   */
+  priority: number;
+  shot: ShotType;
 }
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
@@ -281,4 +361,22 @@ export interface OutputSettings {
   fps: Rational;
   height: number;
   width: number;
+}
+/**
+ * A person in the recording and the mic that hears them best.
+ *
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "Speaker".
+ */
+export interface Speaker {
+  id: string;
+  /**
+   * Channel of the mic in a multi-channel file
+   */
+  mic_channel: number | null;
+  /**
+   * Clip whose audio is this person's mic; None: single-mic mode
+   */
+  mic_clip_id: string | null;
+  name: string;
 }

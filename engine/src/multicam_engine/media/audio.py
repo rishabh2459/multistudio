@@ -23,6 +23,7 @@ from multicam_engine.media.ffmpeg import FFmpegError, run_tool
 
 SYNC_SAMPLE_RATE = 8_000
 _CACHE_VERSION = 1
+MAX_CHANNEL = 31
 
 AudioArray = npt.NDArray[np.float32]
 
@@ -49,13 +50,20 @@ def default_cache_dir() -> Path:
     return base / "multicam-studio" / "audio"
 
 
-def extract_audio(path: str | Path, sample_rate: int = SYNC_SAMPLE_RATE) -> AudioArray:
-    """Decode the first audio stream, downmixed to mono, resampled to ``sample_rate``."""
+def extract_audio(
+    path: str | Path, sample_rate: int = SYNC_SAMPLE_RATE, channel: int | None = None
+) -> AudioArray:
+    """Decode the first audio stream, resampled to ``sample_rate``: downmixed to
+    mono, or only ``channel`` (0-based) of a multi-channel recording (one file,
+    several mics)."""
     path = Path(path)
     if sample_rate <= 0:
         raise ValueError("sample_rate must be positive")
+    if channel is not None and not 0 <= channel <= MAX_CHANNEL:
+        raise ValueError(f"channel must be 0..{MAX_CHANNEL}")
     if not path.is_file():
         raise FileNotFoundError(path)
+    mix = ["-ac", "1"] if channel is None else ["-af", f"pan=mono|c0=c{channel}"]
     try:
         raw = run_tool(
             "ffmpeg",
@@ -64,7 +72,7 @@ def extract_audio(path: str | Path, sample_rate: int = SYNC_SAMPLE_RATE) -> Audi
                 "-i", str(path),
                 "-map", "0:a:0?",  # '?' -> no error if missing; we detect empty output
                 "-vn", "-sn", "-dn",
-                "-ac", "1",
+                *mix,
                 "-ar", str(sample_rate),
                 "-f", "f32le", "-c:a", "pcm_f32le",
                 "pipe:1",
@@ -80,9 +88,11 @@ def extract_audio(path: str | Path, sample_rate: int = SYNC_SAMPLE_RATE) -> Audi
     return samples
 
 
-def _cache_key(path: Path, sample_rate: int) -> str:
+def _cache_key(path: Path, sample_rate: int, channel: int | None = None) -> str:
     stat = path.stat()
     ident = f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}|{sample_rate}|v{_CACHE_VERSION}"
+    if channel is not None:
+        ident += f"|ch{channel}"
     return hashlib.sha256(ident.encode()).hexdigest()[:32]
 
 
@@ -90,21 +100,22 @@ def load_audio(
     path: str | Path,
     sample_rate: int = SYNC_SAMPLE_RATE,
     cache_dir: Path | None = None,
+    channel: int | None = None,
 ) -> AudioArray:
     """``extract_audio`` with an optional on-disk cache (``cache_dir=None`` disables it)."""
     path = Path(path)
     if cache_dir is None:
-        return extract_audio(path, sample_rate)
+        return extract_audio(path, sample_rate, channel)
     if not path.is_file():
         raise FileNotFoundError(path)
-    cached = cache_dir / f"{_cache_key(path, sample_rate)}.npy"
+    cached = cache_dir / f"{_cache_key(path, sample_rate, channel)}.npy"
     if cached.is_file():
         try:
             data: AudioArray = np.load(cached, allow_pickle=False).astype(np.float32, copy=False)
             return data
         except (OSError, ValueError):
             cached.unlink(missing_ok=True)  # corrupt cache entry: decode again
-    samples = extract_audio(path, sample_rate)
+    samples = extract_audio(path, sample_rate, channel)
     cache_dir.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=cache_dir, suffix=".npy.part")
     try:

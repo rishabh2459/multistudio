@@ -13,8 +13,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from multicam_api.db.models import ClipRow, CutListRow, ProjectRow
+from multicam_engine.decide.presets import SwitchParams, SwitchSettings, params_for
 from multicam_engine.models import Clip, CutList, OutputSettings, Project
-from multicam_engine.models.project import ClipRole, MediaInfo, Preset, SyncResult
+from multicam_engine.models.project import (
+    CameraLayout,
+    ClipRole,
+    MediaInfo,
+    Preset,
+    Speaker,
+    SyncResult,
+)
 
 
 class FileStatus(StrEnum):
@@ -54,7 +62,29 @@ def clip_to_engine(row: ClipRow) -> Clip:
     )
 
 
+def stored_layout(row: ProjectRow) -> tuple[list[Speaker], list[CameraLayout]]:
+    """The explicit layout, pruned of clips that were removed since it was saved
+    (a speaker whose mic clip is gone keeps no mic; auto-edit then asks for one)."""
+    if not row.layout:
+        return [], []
+    clip_ids = {UUID(c.id) for c in row.clips}
+    speakers = [Speaker.model_validate(s) for s in row.layout.get("speakers", [])]
+    speakers = [
+        s
+        if s.mic_clip_id is None or s.mic_clip_id in clip_ids
+        else s.model_copy(update={"mic_clip_id": None, "mic_channel": None})
+        for s in speakers
+    ]
+    cameras = [
+        c
+        for c in (CameraLayout.model_validate(c) for c in row.layout.get("cameras", []))
+        if c.clip_id in clip_ids
+    ]
+    return speakers, cameras
+
+
 def project_to_engine(row: ProjectRow) -> Project:
+    speakers, cameras = stored_layout(row)
     return Project(
         id=UUID(row.id),
         name=row.name,
@@ -63,7 +93,20 @@ def project_to_engine(row: ProjectRow) -> Project:
         clips=[clip_to_engine(c) for c in row.clips],
         reference_clip_id=UUID(row.reference_clip_id) if row.reference_clip_id else None,
         created_at=row.created_at,
+        speakers=speakers,
+        cameras=cameras,
     )
+
+
+def switch_settings(row: ProjectRow) -> SwitchSettings:
+    """The project's switching settings: custom if set, else its preset's values."""
+    if row.switch:
+        return SwitchSettings.model_validate(row.switch)
+    return SwitchSettings.from_params(params_for(row.preset))
+
+
+def switch_params(row: ProjectRow) -> SwitchParams:
+    return switch_settings(row).to_params()
 
 
 def latest_cutlist(session: Session, project_id: str) -> CutListRow | None:

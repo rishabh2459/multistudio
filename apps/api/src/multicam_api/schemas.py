@@ -10,9 +10,17 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from multicam_api.services.projects import FileStatus
+from multicam_engine.decide.presets import SwitchSettings
 from multicam_engine.export import NleFormat
 from multicam_engine.models import CutList, OutputSettings
-from multicam_engine.models.project import ClipRole, MediaInfo, Preset, SyncResult
+from multicam_engine.models.project import (
+    CameraLayout,
+    ClipRole,
+    MediaInfo,
+    Preset,
+    Speaker,
+    SyncResult,
+)
 from multicam_engine.models.time import Rational
 
 
@@ -67,6 +75,15 @@ class ClipOut(ApiModel):
 
 
 # ------------------------------------------------------------------ projects
+class ProjectLayout(ApiModel):
+    """Who is recorded by which mic, and who is visible in which camera."""
+
+    speakers: list[Speaker] = Field(max_length=10)
+    cameras: list[CameraLayout] = Field(
+        max_length=10, description="Clips without an entry are B-roll (never auto-selected)"
+    )
+
+
 class ProjectCreate(ApiModel):
     name: str = Field(min_length=1, max_length=200)
     preset: Preset = Preset.BALANCED
@@ -77,9 +94,16 @@ class ProjectCreate(ApiModel):
 
 class ProjectUpdate(ApiModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    preset: Preset | None = None
+    preset: Preset | None = Field(
+        default=None, description="Also drops custom switch settings unless 'switch' is given"
+    )
     output: OutputSettings | None = None
     reference_clip_id: UUID | None = None
+    layout: ProjectLayout | None = Field(default=None, description="Explicit camera layout")
+    reset_layout: bool = Field(default=False, description="Go back to the role-derived layout")
+    switch: SwitchSettings | None = Field(
+        default=None, description="Custom switching (sliders / a user preset)"
+    )
 
 
 class ProjectSummary(ApiModel):
@@ -100,6 +124,11 @@ class ProjectOut(ApiModel):
     output_custom: bool
     reference_clip_id: UUID | None
     clips: list[ClipOut]
+    speakers: list[Speaker] = Field(description="Effective speakers (explicit or from roles)")
+    cameras: list[CameraLayout] = Field(description="Effective layout of every clip")
+    layout_custom: bool
+    switch: SwitchSettings = Field(description="Effective switching settings")
+    switch_custom: bool
     cutlist_version: int | None
     created_at: datetime
     updated_at: datetime
@@ -154,11 +183,15 @@ class AnalyzeParams(ApiModel):
 
 class DecideParams(ApiModel):
     preset: Preset | None = Field(default=None, description="Default: the project's preset")
+    switch: SwitchSettings | None = Field(
+        default=None, description="One-off settings; default: the project's (custom or preset)"
+    )
 
 
 class AutoParams(ApiModel):
     vad: Literal["auto", "silero", "energy"] = "auto"
     preset: Preset | None = None
+    switch: SwitchSettings | None = None
     framing: bool = Field(default=False, description="Also run auto framing (faces, punch-ins)")
 
 
@@ -277,6 +310,28 @@ class NleExportIn(ApiModel):
 class NleExportOut(ApiModel):
     export: ExportOut
     warnings: list[str]
+
+
+# ------------------------------------------------------------------ presets
+class PresetOut(ApiModel):
+    id: str = Field(description="Built-in preset name, or the user preset's id")
+    name: str
+    builtin: bool
+    settings: SwitchSettings
+
+
+class UserPresetIn(ApiModel):
+    name: str = Field(min_length=1, max_length=60)
+    settings: SwitchSettings
+
+
+class PresetFile(ApiModel):
+    """Contents of a ``.mcpreset.json`` file (export / import)."""
+
+    format: Literal["multicam-preset"] = "multicam-preset"
+    version: Literal[1] = 1
+    name: str = Field(min_length=1, max_length=60)
+    settings: SwitchSettings
 
 
 class ErrorOut(ApiModel):

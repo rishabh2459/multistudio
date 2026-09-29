@@ -94,6 +94,9 @@ class Segment(_FrameRange):
     reframe_vertical: Reframe | None = Field(
         default=None, description="Framing for 9:16 output (default: centred crop)"
     )
+    confidence: float | None = Field(
+        default=None, ge=0.0, le=1.0, description="How sure auto-edit is about this cut"
+    )
 
 
 class RemovalKind(StrEnum):
