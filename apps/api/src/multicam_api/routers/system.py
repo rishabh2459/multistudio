@@ -10,6 +10,7 @@ from multicam_api.schemas import Health, SystemInfo
 from multicam_engine import __version__ as engine_version
 from multicam_engine.analysis.vad import SILERO_MODEL_FILE, models_dir
 from multicam_engine.media.ffmpeg import FFmpegError, FFmpegNotFoundError, find_tool, run_tool
+from multicam_engine.reframe.detect import YUNET_MODEL_FILE
 from multicam_engine.render.encoders import PRESETS, available_encoders
 
 router = APIRouter(prefix="/api/system", tags=["system"])
@@ -40,6 +41,7 @@ def info(state: StateDep, encoders: bool = False) -> SystemInfo:
         ffmpeg=ffmpeg,
         ffmpeg_version=version,
         vad_model_available=(models_dir() / SILERO_MODEL_FILE).is_file(),
+        face_model_available=(models_dir() / YUNET_MODEL_FILE).is_file(),
         encoders_h264=h264,
         encoders_hevc=hevc,
         render_presets=sorted(PRESETS),

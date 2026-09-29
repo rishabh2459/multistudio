@@ -585,7 +585,8 @@
           "decide",
           "auto",
           "render",
-          "proxy"
+          "proxy",
+          "reframe"
         ],
         "title": "JobKind",
         "type": "string"
@@ -1148,9 +1149,9 @@
         "title": "Rational",
         "type": "object"
       },
-      "Reframe": {
+      "Reframe-Input": {
         "additionalProperties": false,
-        "description": "Crop/zoom for a segment. Normalized coordinates (0..1) of the crop center.",
+        "description": "Crop/zoom for a segment. Normalized coordinates (0..1) of the crop centre.\n\nThe crop has the output's aspect ratio; ``scale`` 1 is the largest such crop\n(the full frame when source and output have the same shape), 2 shows half\nthe width. With ``path`` the centre follows those keyframes (a slow pan that\nkeeps a face framed); ``cx``/``cy`` are then the starting point.",
         "properties": {
           "cx": {
             "maximum": 1.0,
@@ -1163,6 +1164,26 @@
             "minimum": 0.0,
             "title": "Cy",
             "type": "number"
+          },
+          "manual": {
+            "default": false,
+            "description": "Set by the user: auto framing keeps it",
+            "title": "Manual",
+            "type": "boolean"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReframeKey"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
           },
           "scale": {
             "maximum": 4.0,
@@ -1177,6 +1198,90 @@
           "scale"
         ],
         "title": "Reframe",
+        "type": "object"
+      },
+      "Reframe-Output": {
+        "additionalProperties": false,
+        "description": "Crop/zoom for a segment. Normalized coordinates (0..1) of the crop centre.\n\nThe crop has the output's aspect ratio; ``scale`` 1 is the largest such crop\n(the full frame when source and output have the same shape), 2 shows half\nthe width. With ``path`` the centre follows those keyframes (a slow pan that\nkeeps a face framed); ``cx``/``cy`` are then the starting point.",
+        "properties": {
+          "cx": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Cx",
+            "type": "number"
+          },
+          "cy": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Cy",
+            "type": "number"
+          },
+          "manual": {
+            "default": false,
+            "description": "Set by the user: auto framing keeps it",
+            "title": "Manual",
+            "type": "boolean"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReframeKey"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "scale": {
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Scale",
+            "type": "number"
+          }
+        },
+        "required": [
+          "cx",
+          "cy",
+          "scale",
+          "path",
+          "manual"
+        ],
+        "title": "Reframe",
+        "type": "object"
+      },
+      "ReframeKey": {
+        "additionalProperties": false,
+        "description": "Crop centre at one timeline frame; the render moves linearly between keys.",
+        "properties": {
+          "cx": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Cx",
+            "type": "number"
+          },
+          "cy": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Cy",
+            "type": "number"
+          },
+          "frame": {
+            "description": "Timeline frame",
+            "minimum": 0.0,
+            "title": "Frame",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "frame",
+          "cx",
+          "cy"
+        ],
+        "title": "ReframeKey",
         "type": "object"
       },
       "Removal-Input": {
@@ -1268,12 +1373,23 @@
           "reframe": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Reframe"
+                "$ref": "#/components/schemas/Reframe-Input"
               },
               {
                 "type": "null"
               }
             ]
+          },
+          "reframe_vertical": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reframe-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Framing for 9:16 output (default: centred crop)"
           },
           "source": {
             "$ref": "#/components/schemas/SegmentSource",
@@ -1310,12 +1426,23 @@
           "reframe": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Reframe"
+                "$ref": "#/components/schemas/Reframe-Output"
               },
               {
                 "type": "null"
               }
             ]
+          },
+          "reframe_vertical": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reframe-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Framing for 9:16 output (default: centred crop)"
           },
           "source": {
             "$ref": "#/components/schemas/SegmentSource",
@@ -1332,7 +1459,8 @@
           "end_frame",
           "clip_id",
           "source",
-          "reframe"
+          "reframe",
+          "reframe_vertical"
         ],
         "title": "Segment",
         "type": "object"
@@ -1429,6 +1557,10 @@
             "title": "Engine Version",
             "type": "string"
           },
+          "face_model_available": {
+            "title": "Face Model Available",
+            "type": "boolean"
+          },
           "ffmpeg": {
             "anyOf": [
               {
@@ -1470,6 +1602,7 @@
           "ffmpeg",
           "ffmpeg_version",
           "vad_model_available",
+          "face_model_available",
           "encoders_h264",
           "encoders_hevc",
           "render_presets"
@@ -1505,6 +1638,10 @@
             "title": "Has Proxy",
             "type": "boolean"
           },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
           "media_offset_s": {
             "title": "Media Offset S",
             "type": "number"
@@ -1512,6 +1649,11 @@
           "speed": {
             "title": "Speed",
             "type": "number"
+          },
+          "width": {
+            "description": "Picture size as displayed (after rotation)",
+            "title": "Width",
+            "type": "integer"
           }
         },
         "required": [
@@ -1522,7 +1664,9 @@
           "duration_s",
           "fps",
           "has_audio",
-          "has_proxy"
+          "has_proxy",
+          "width",
+          "height"
         ],
         "title": "TimelineClip",
         "type": "object"

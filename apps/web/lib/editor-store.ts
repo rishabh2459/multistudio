@@ -6,6 +6,7 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
 import type { CutList } from './api';
+import type { Aspect } from './framing';
 import { durationFrames, sameEdit } from './timeline-edit';
 
 export const MAX_HISTORY = 200;
@@ -27,6 +28,7 @@ export interface EditorState {
   playing: boolean;
   rate: number; // 1, 2, 4
   zoom: number; // px per second
+  aspect: Aspect; // which framing the editor shows and edits
   save: SaveStatus;
 
   /** Apply an edit (ignored if it changes nothing). */
@@ -37,6 +39,7 @@ export interface EditorState {
   seek: (frame: number) => void;
   setPlaying: (playing: boolean, rate?: number) => void;
   setZoom: (zoom: number) => void;
+  setAspect: (aspect: Aspect) => void;
   setSave: (save: SaveStatus) => void;
 }
 
@@ -52,6 +55,7 @@ export function createEditorStore(initial: CutList, version: number, zoom = 40):
     playing: false,
     rate: 1,
     zoom,
+    aspect: '16:9',
     save: { state: 'saved', version },
 
     edit: (fn) => {
@@ -97,6 +101,7 @@ export function createEditorStore(initial: CutList, version: number, zoom = 40):
     },
     setPlaying: (playing, rate) => set({ playing, rate: rate ?? get().rate }),
     setZoom: (value) => set({ zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)) }),
+    setAspect: (aspect) => set({ aspect }),
     setSave: (save) => set({ save }),
   }));
 }

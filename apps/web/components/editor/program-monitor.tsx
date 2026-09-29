@@ -8,6 +8,7 @@ import { api, type Clip, type TimelineClip } from '@/lib/api';
 import { clipDisplayName } from '@/lib/cutlist';
 import type { EditorStore } from '@/lib/editor-store';
 import type { Rational } from '@/lib/format';
+import { cropStyle, effectiveReframe } from '@/lib/framing';
 import { frameToSeconds, isRecording, mediaTime } from '@/lib/media-time';
 import { segmentIndexAt, switchAt } from '@/lib/timeline-edit';
 import { cn } from '@/lib/utils';
@@ -54,7 +55,9 @@ export function ProgramMonitor({
   audioClipId: string | null;
 }) {
   const videos = useRef(new Map<string, HTMLVideoElement>());
-  const onAir = useStore(store, (s) => s.cut.segments[segmentIndexAt(s.cut, s.playhead)]?.clip_id);
+  const onAirSeg = useStore(store, (s) => s.cut.segments[segmentIndexAt(s.cut, s.playhead)]);
+  const onAir = onAirSeg?.clip_id;
+  const aspect = useStore(store, (s) => s.aspect);
   const playhead = useStore(store, (s) => Math.floor(s.playhead));
   const t = frameToSeconds(playhead, fps);
 
@@ -86,6 +89,25 @@ export function ProgramMonitor({
         const timing = timings.get(clip.id);
         const live = clip.id === onAir;
         const recording = timing ? isRecording(timing, t) : false;
+        const reframe = live && onAirSeg ? effectiveReframe(onAirSeg, aspect) : null;
+        const crop =
+          reframe && timing?.width && timing.height
+            ? cropStyle(reframe, playhead, timing.width, timing.height, aspect)
+            : null;
+        const video = timing?.has_proxy ? (
+          <video
+            ref={(el) => {
+              if (el) videos.current.set(clip.id, el);
+              else videos.current.delete(clip.id);
+            }}
+            src={api.proxyUrl(clip.id)}
+            muted={clip.id !== audioClipId}
+            playsInline
+            preload="auto"
+            className={crop ? 'absolute max-w-none' : 'size-full object-contain'}
+            style={crop ? { ...crop, objectFit: 'fill' } : undefined}
+          />
+        ) : null;
         return (
           <button
             key={clip.id}
@@ -105,18 +127,19 @@ export function ProgramMonitor({
                 .edit((c) => switchAt(c, Math.floor(store.getState().playhead), clip.id))
             }
           >
-            {timing?.has_proxy ? (
-              <video
-                ref={(el) => {
-                  if (el) videos.current.set(clip.id, el);
-                  else videos.current.delete(clip.id);
-                }}
-                src={api.proxyUrl(clip.id)}
-                muted={clip.id !== audioClipId}
-                playsInline
-                preload="auto"
-                className="size-full object-contain"
-              />
+            {video ? (
+              // Same element tree with or without a crop, so the <video> never remounts.
+              <div
+                data-testid={crop ? 'framed-preview' : undefined}
+                className={
+                  crop
+                    ? 'relative mx-auto h-full overflow-hidden ring-1 ring-white/40'
+                    : 'size-full'
+                }
+                style={crop ? { aspectRatio: aspect === '9:16' ? '9 / 16' : '16 / 9' } : undefined}
+              >
+                {video}
+              </div>
             ) : (
               <div className="flex size-full items-center justify-center text-xs text-white/70">
                 {timing ? 'Preparing preview…' : 'File not available'}

@@ -20,6 +20,7 @@ to 3 s before they are needed (fast, still frame-accurate because we trim).
 from __future__ import annotations
 
 from fractions import Fraction
+from itertools import pairwise
 from pathlib import Path
 
 from multicam_engine.models.cutlist import Reframe
@@ -37,14 +38,41 @@ def _rate(value: Fraction) -> str:
     return f"{value.numerator}/{value.denominator}"
 
 
-def _fit(width: int, height: int, reframe: Reframe | None) -> str:
-    steps = []
-    if reframe is not None and reframe.scale > 1.0:
-        s = f"{reframe.scale:.6f}"
-        steps.append(
-            f"crop=w=iw/{s}:h=ih/{s}:"
-            f"x='clip({reframe.cx:.6f}*iw-ow/2,0,iw-ow)':y='clip({reframe.cy:.6f}*ih-oh/2,0,ih-oh)'"
-        )
+def _lerp_expr(values: list[tuple[float, float]]) -> str:
+    """ffmpeg expression of t: piecewise-linear through (time, value) points."""
+    if len(values) == 1:
+        return f"{values[0][1]:.6f}"
+    expr = f"{values[-1][1]:.6f}"
+    for (t0, v0), (t1, v1) in reversed(list(pairwise(values))):
+        slope = (v1 - v0) / (t1 - t0) if t1 > t0 else 0.0
+        expr = f"if(lt(t,{t1:.4f}),{v0:.6f}+({slope:.8f})*(t-{t0:.4f}),{expr})"
+    return f"if(lt(t,{values[0][0]:.4f}),{values[0][1]:.6f},{expr})"
+
+
+def _crop(width: int, height: int, reframe: Reframe, first_frame: int, fps: Fraction) -> str:
+    """Crop with the output's aspect ratio (zoomed by ``scale``), centred on the
+    reframe point or following its keyframes (t = seconds since the piece start)."""
+    aspect = f"{width / height:.6f}"
+    s = f"{reframe.scale:.6f}"
+    w = f"min(iw,ih*{aspect})/{s}"
+    h = f"min(ih,iw/{aspect})/{s}"
+    if reframe.path:
+        keys = [(float((k.frame - first_frame) / fps), k.cx, k.cy) for k in reframe.path]
+        cx = _lerp_expr([(t, x) for t, x, _ in keys])
+        cy = _lerp_expr([(t, y) for t, _, y in keys])
+    else:
+        cx, cy = f"{reframe.cx:.6f}", f"{reframe.cy:.6f}"
+    return f"crop=w='{w}':h='{h}':x='clip(({cx})*iw-ow/2,0,iw-ow)':y='clip(({cy})*ih-oh/2,0,ih-oh)'"
+
+
+def _fit(
+    width: int,
+    height: int,
+    reframe: Reframe | None,
+    first_frame: int = 0,
+    fps: Fraction = Fraction(30),
+) -> str:
+    steps = [] if reframe is None else [_crop(width, height, reframe, first_frame, fps)]
     steps += [
         f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos",
         f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black",
@@ -65,12 +93,15 @@ def piece_filter(
             f"setsar=1,format=yuv420p,setpts=PTS-STARTPTS[{out_label}]"
         )
     c = piece.covered
+    fit = _fit(
+        plan.width, plan.height, piece.reframe, piece.start_frame + piece.head_black, plan.fps
+    )
     return (
         f"[{input_label}]"
         f"setpts='(PTS*TB-{_dec(piece.source_pts)})/{_dec(piece.speed)}/TB',"
         f"fps={rate}:start_time=0:round=near,"
         f"trim=end_frame={c},tpad=stop=-1:stop_mode=clone,trim=end_frame={c},"
-        f"{_fit(plan.width, plan.height, piece.reframe)},"
+        f"{fit},"
         f"tpad=start={piece.head_black}:stop={piece.tail_black}:"
         f"start_mode=add:stop_mode=add:color=black,"
         f"setpts=PTS-STARTPTS[{out_label}]"

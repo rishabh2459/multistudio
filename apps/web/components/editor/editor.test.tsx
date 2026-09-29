@@ -8,6 +8,7 @@ import { makeClip, makeCutlist, makeJob, makeProject, T0 } from '@/test/fixtures
 import { renderWithClient } from '@/test/render';
 
 import { EditorView, runAction } from './editor-view';
+import { Inspector } from './inspector';
 import { ProgramMonitor, syncVideo } from './program-monitor';
 import { tickStep, Timeline } from './timeline';
 
@@ -25,6 +26,8 @@ const timing = (id: string, over: Partial<TimelineClip> = {}): TimelineClip => (
   fps: FPS,
   has_audio: false,
   has_proxy: false,
+  width: 1920,
+  height: 1080,
   ...over,
 });
 const timings = new Map([
@@ -167,5 +170,47 @@ describe('EditorView', () => {
     expect((put!.body as { cutlist: ReturnType<typeof cut> }).cutlist.segments).toEqual([
       expect.objectContaining({ clip_id: 'b', start_frame: 0, end_frame: 900, source: 'manual' }),
     ]);
+  });
+});
+
+describe('framing', () => {
+  it('edits zoom and position per output shape and resets', () => {
+    const store = createEditorStore(cut(), 1);
+    renderWithClient(<Inspector store={store} clips={clips} timings={timings} fps={FPS} />);
+    const seg = () => store.getState().cut.segments[0]!;
+
+    fireEvent.change(screen.getByLabelText('Zoom'), { target: { value: '2' } });
+    expect(seg().reframe).toMatchObject({ scale: 2, manual: true, path: null });
+    expect(seg().reframe_vertical).toBeNull();
+    expect(screen.getByTestId('framing')).toHaveTextContent('manual');
+
+    fireEvent.click(screen.getByRole('button', { name: '9:16' }));
+    expect(store.getState().aspect).toBe('9:16');
+    fireEvent.change(screen.getByLabelText('Left/right'), { target: { value: '0' } });
+    // Clamped so the crop stays inside the frame.
+    expect(seg().reframe_vertical!.cx).toBeCloseTo(0.1582, 3);
+
+    fireEvent.click(screen.getByRole('button', { name: /Reset framing/ }));
+    expect(seg().reframe_vertical).toBeNull();
+    expect(seg().reframe?.scale).toBe(2);
+  });
+
+  it('shows the zoom on the shot and crops the live preview', () => {
+    const store = createEditorStore(cut(), 1);
+    store.getState().edit((c) => ({
+      ...c,
+      segments: c.segments.map((x, i) =>
+        i === 0
+          ? { ...x, reframe: { cx: 0.5, cy: 0.5, scale: 1.3, path: null, manual: false } }
+          : x,
+      ),
+    }));
+    const withProxy = new Map([...timings].map(([k, v]) => [k, { ...v, has_proxy: true }]));
+    renderWithClient(<Timeline store={store} clips={clips} timings={withProxy} fps={FPS} />);
+    expect(screen.getAllByTestId('shot-zoom')[0]).toHaveTextContent('1.3×');
+    renderWithClient(
+      <ProgramMonitor store={store} clips={clips} timings={withProxy} fps={FPS} audioClipId="a" />,
+    );
+    expect(screen.getByTestId('framed-preview')).toBeInTheDocument();
   });
 });

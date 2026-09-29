@@ -20,11 +20,20 @@ from sqlalchemy.orm import Session
 
 from multicam_api.db.models import ClipRow, CutListRow, ExportRow, ProjectRow, StepCacheRow
 from multicam_api.jobs.context import JobContext, JobFailedError
-from multicam_api.schemas import AnalyzeParams, AutoParams, DecideParams, JobKind, RenderParams
+from multicam_api.schemas import (
+    AnalyzeParams,
+    AutoParams,
+    DecideParams,
+    JobKind,
+    ReframeParams,
+    RenderParams,
+)
+from multicam_api.services.media import probe_cached
 from multicam_api.services.projects import (
     FileStatus,
     add_cutlist_version,
     clip_fingerprint,
+    clip_to_engine,
     file_stat,
     file_status,
     follow_reference,
@@ -37,6 +46,18 @@ from multicam_engine.media.probe import ProbeError, probe
 from multicam_engine.models.cutlist import AudioConfig, AudioMode, CutList
 from multicam_engine.models.project import ClipRole, Project
 from multicam_engine.pipeline import Analysis, analyze_project, cutlist_from_analysis
+from multicam_engine.reframe import (
+    Detections,
+    FaceDetector,
+    FaceTracks,
+    ReframeSettings,
+    auto_reframe,
+    clip_geometry,
+    detect_faces,
+    detections_from_json,
+    detections_to_json,
+    load_face_detector,
+)
 from multicam_engine.render import PRESETS, RenderProgress, make_proxy, render
 from multicam_engine.render.proxy import proxy_path
 from multicam_engine.sync import sync_files
@@ -302,9 +323,13 @@ def run_auto(ctx: JobContext) -> Result:
     synced = run_sync(ctx)
     ctx.span(0.45, 0.9)
     analyzed = analyze(ctx, AnalyzeParams(vad=params.vad))
-    ctx.span(0.9, 1.0)
+    ctx.span(0.9, 0.93 if params.framing else 1.0)
     decided = decide(ctx, DecideParams(preset=params.preset))
-    return {"sync": synced, "analyze": analyzed, "decide": decided}
+    result: Result = {"sync": synced, "analyze": analyzed, "decide": decided}
+    if params.framing:
+        ctx.span(0.93, 1.0)
+        result["reframe"] = reframe(ctx, ReframeParams())
+    return result
 
 
 # ------------------------------------------------------------------ render
@@ -389,6 +414,87 @@ def run_render(ctx: JobContext) -> Result:
     return {**out_result, "cached": False}
 
 
+# ------------------------------------------------------------------ reframe
+FACE_SAMPLE_S = 0.5
+
+
+def _faces_for(ctx: JobContext, clip: ClipRow, detector: FaceDetector | None) -> list[Detections]:
+    """Face detections of a clip, cached per file version (media time)."""
+    if detector is None:
+        return []
+    key = stable_hash({**clip_fingerprint(clip), "every": FACE_SAMPLE_S, "model": detector.name})
+    artifact = ctx.storage.artifact_path(ctx.project_id, f"faces-{clip.id}-{key[:12]}.json")
+    if artifact.is_file():
+        return detections_from_json(artifact.read_text(encoding="utf-8"))
+    info = probe_cached(clip.path)
+    name = Path(clip.path).name
+    detections = detect_faces(
+        clip.path,
+        detector,
+        every_s=FACE_SAMPLE_S,
+        info=info,
+        on_progress=lambda f: ctx.report("faces", f, name),
+        cancel=ctx.cancel_event,
+    )
+    artifact.write_text(detections_to_json(detections), encoding="utf-8")
+    return detections
+
+
+def run_reframe(ctx: JobContext) -> Result:
+    check_files(ctx)
+    return reframe(ctx, ReframeParams.model_validate(ctx.params))
+
+
+def reframe(ctx: JobContext, params: ReframeParams) -> Result:
+    """Faces -> punch-ins and crops (16:9 and 9:16) as a new cutlist version."""
+    with ctx.db.session() as s:
+        row = _project(s, ctx)
+        project = project_to_engine(row)
+        latest = latest_cutlist(s, str(ctx.project_id))
+        if latest is None:
+            raise JobFailedError("no cutlist yet: run the auto edit first")
+        cutlist = CutList.model_validate(latest.data)
+        clips = [c for c in row.clips if c.id in {str(seg.clip_id) for seg in cutlist.segments}]
+        analyzed = _cache_get(s, ctx.project_id, "analyze")
+    detector = load_face_detector()
+    if detector is None:
+        ctx.warnings.append("face model not installed: centred framing only (make fetch-models)")
+    tracks, geoms = {}, {}
+    for i, clip in enumerate(clips):
+        ctx.span_part(i, len(clips))
+        detections = _faces_for(ctx, clip, detector)
+        geom = clip_geometry(clip_to_engine(clip), probe_cached(clip.path))
+        geoms[UUID(clip.id)] = geom
+        tracks[UUID(clip.id)] = FaceTracks.build(detections, geom)
+    ctx.span_part(len(clips), len(clips))
+    activity, speaker_ids = None, None
+    if analyzed is not None:
+        artifact = ctx.storage.artifact_path(ctx.project_id, str(analyzed.result["artifact"]))
+        if artifact.is_file():
+            analysis = Analysis.load(artifact)
+            activity, speaker_ids = analysis.activity, analysis.speaker_clip_ids
+    punch = (
+        params.punch
+        or {"calm": "calm", "balanced": "balanced", "dynamic": "dynamic"}[project.preset.value]
+    )
+    settings = ReframeSettings(punch=punch, horizontal=params.horizontal, vertical=params.vertical)
+    framed, report = auto_reframe(
+        project, cutlist, tracks, geoms, settings, activity=activity, speaker_ids=speaker_ids
+    )
+    ctx.warnings.extend(report.warnings)
+    summary = {
+        "punch_ins": report.punch_ins,
+        "framed": report.framed,
+        "centred": report.centred,
+        "punch": punch,
+    }
+    if framed.model_dump(mode="json")["segments"] == latest.data["segments"]:
+        return {**summary, "version": latest.version, "cached": True}
+    with ctx.db.transaction() as s:
+        saved = add_cutlist_version(s, str(ctx.project_id), framed, source="reframe")
+        return {**summary, "version": saved.version, "cached": False}
+
+
 # ------------------------------------------------------------------ proxy
 def run_proxy(ctx: JobContext) -> Result:
     """Preview copies (540p, short GOP) of every clip for the timeline editor.
@@ -418,4 +524,5 @@ STEPS: dict[JobKind, Callable[[JobContext], Result]] = {
     JobKind.AUTO: run_auto,
     JobKind.RENDER: run_render,
     JobKind.PROXY: run_proxy,
+    JobKind.REFRAME: run_reframe,
 }

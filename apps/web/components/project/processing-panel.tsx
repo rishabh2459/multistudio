@@ -22,7 +22,7 @@ import { JobProgress } from './job-progress';
 
 type Vad = 'auto' | 'silero' | 'energy';
 const PRESETS: Preset[] = ['calm', 'balanced', 'dynamic'];
-const EDIT_KINDS = ['auto', 'probe', 'sync', 'analyze', 'decide'] as const;
+const EDIT_KINDS = ['auto', 'probe', 'sync', 'analyze', 'decide', 'reframe'] as const;
 
 export function SyncTable({ project }: { project: Project }) {
   const synced = project.clips.filter((c) => c.sync);
@@ -130,6 +130,7 @@ export function ProcessingPanel({
   const start = useStartJob(project.id);
   const [vad, setVad] = useState<Vad>('auto');
   const [preset, setPreset] = useState<Preset>(project.preset);
+  const [framing, setFraming] = useState(true);
   const current = latestJob(jobs, [...EDIT_KINDS]);
   const busy = current !== undefined && !isFinished(current);
   const warnings = current?.status === 'succeeded' ? jobWarnings(current) : [];
@@ -167,10 +168,25 @@ export function ProcessingPanel({
               </Select>
             </div>
           </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-primary"
+              checked={framing}
+              onChange={(e) => setFraming(e.target.checked)}
+            />
+            <span>
+              Auto framing
+              <span className="block text-xs text-muted-foreground">
+                Follows faces for the vertical (9:16) version and adds gentle punch-ins that match
+                the editing style.
+              </span>
+            </span>
+          </label>
           <Button
             className="self-start"
             disabled={busy || start.isPending}
-            onClick={() => start.mutate({ kind: 'auto', params: { vad, preset } })}
+            onClick={() => start.mutate({ kind: 'auto', params: { vad, preset, framing } })}
           >
             <Wand2 /> {cutlist ? 'Run again' : 'Start auto edit'}
           </Button>

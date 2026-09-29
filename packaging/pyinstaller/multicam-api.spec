@@ -9,7 +9,8 @@ ROOT = Path(SPECPATH).resolve().parents[1]
 
 # Alembic reads the migration scripts from disk, so ship them as files.
 datas = collect_data_files("multicam_api", include_py_files=True, subdir="db/migrations")
-datas.append((str(ROOT / "packaging" / "models" / "silero_vad.onnx"), "models"))
+for model in ("silero_vad.onnx", "face_detection_yunet_2023mar.onnx"):
+    datas.append((str(ROOT / "packaging" / "models" / model), "models"))
 for dist in ("multicam-api", "multicam-engine", "fastapi", "starlette", "uvicorn", "pydantic",
              "sse-starlette", "sqlalchemy", "alembic", "huey", "onnxruntime", "numpy", "scipy"):
     try:

@@ -74,6 +74,7 @@ test('create a project, auto edit it and export a video', async ({ page }) => {
   await expect(status).toContainText(`version ${v0 + 2}`, { timeout: 10_000 });
   // drag the first cut 60 px to the right
   const cut = page.getByRole('separator').first();
+  await cut.scrollIntoViewIfNeeded();
   const box = (await cut.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -82,6 +83,23 @@ test('create a project, auto edit it and export a video', async ({ page }) => {
   await expect(status).toContainText(`version ${v0 + 3}`, { timeout: 10_000 });
   // previews are made in the background (the proxy job)
   await expect(page.getByTestId('job-progress')).toHaveCount(0, { timeout: 120_000 });
+
+  // Auto framing (faces + punch-ins) makes a new version; the 9:16 preview crops
+  const framed = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && r.url().endsWith('/jobs') && r.status() === 202,
+  );
+  await page.getByRole('button', { name: 'Auto framing' }).click();
+  await framed;
+  await expect(page.getByTestId('job-progress')).toHaveCount(0, { timeout: 120_000 });
+  await expect(status).toContainText('Saved');
+  await page.getByRole('button', { name: '9:16' }).click();
+  await expect(page.getByTestId('framed-preview')).toBeVisible();
+  const zoom = page.getByTestId('framing').getByLabel('Zoom');
+  await zoom.focus();
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight'); // sliders keep arrow keys
+  await expect(zoom).toHaveValue('1.2');
+  await expect(page.getByTestId('framing')).toContainText('manual');
+  await expect(status).toContainText('Saved (version', { timeout: 10_000 });
 
   // 5. Export a draft + timelines for editing software
   await page.getByRole('button', { name: 'Continue to export' }).click();

@@ -107,11 +107,20 @@ export interface Segment {
    */
   end_frame: number;
   reframe: Reframe | null;
+  /**
+   * Framing for 9:16 output (default: centred crop)
+   */
+  reframe_vertical: Reframe | null;
   source: SegmentSource;
   start_frame: number;
 }
 /**
- * Crop/zoom for a segment. Normalized coordinates (0..1) of the crop center.
+ * Crop/zoom for a segment. Normalized coordinates (0..1) of the crop centre.
+ *
+ * The crop has the output's aspect ratio; ``scale`` 1 is the largest such crop
+ * (the full frame when source and output have the same shape), 2 shows half
+ * the width. With ``path`` the centre follows those keyframes (a slow pan that
+ * keeps a face framed); ``cx``/``cy`` are then the starting point.
  *
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
  * via the `definition` "Reframe".
@@ -119,7 +128,26 @@ export interface Segment {
 export interface Reframe {
   cx: number;
   cy: number;
+  /**
+   * Set by the user: auto framing keeps it
+   */
+  manual: boolean;
+  path: ReframeKey[] | null;
   scale: number;
+}
+/**
+ * Crop centre at one timeline frame; the render moves linearly between keys.
+ *
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "ReframeKey".
+ */
+export interface ReframeKey {
+  cx: number;
+  cy: number;
+  /**
+   * Timeline frame
+   */
+  frame: number;
 }
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema

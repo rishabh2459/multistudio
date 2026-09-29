@@ -59,6 +59,7 @@ export function makeCutlist(segments: Array<[string, number, number]>): CutList 
       end_frame,
       source: 'auto',
       reframe: null,
+      reframe_vertical: null,
     })),
     removals: [],
     audio: { mode: 'mix', gains_db: {}, single_clip_id: null },

@@ -11,6 +11,7 @@ import {
   sameEdit,
   segmentIndexAt,
   setCamera,
+  setReframe,
   split,
   switchAt,
 } from './timeline-edit';
@@ -104,5 +105,41 @@ describe('timeline edits', () => {
     expect(normalize(cut.segments).length).toBeLessThanOrEqual(cut.segments.length);
     expect(sameEdit(cut, { ...cut, version: 99 })).toBe(true);
     expect(sameEdit(cut, base())).toBe(false);
+  });
+});
+
+describe('setReframe', () => {
+  const frame = {
+    cx: 0.4,
+    cy: 0.5,
+    scale: 1.5,
+    path: [{ frame: 0, cx: 0.4, cy: 0.5 }],
+    manual: false,
+  };
+
+  it('sets the chosen shape only and marks it manual', () => {
+    const cut = setReframe(base(), 1, '9:16', frame);
+    const seg = cut.segments[1]!;
+    expect(seg.reframe_vertical).toEqual({ ...frame, path: null, manual: true });
+    expect(seg.reframe).toBeNull();
+    expect(seg.source).toBe('manual');
+    expect(setReframe(base(), 0, '16:9', frame).segments[0]!.reframe?.scale).toBe(1.5);
+  });
+
+  it('keeps framed shots apart and clears the framing on a camera change', () => {
+    const twin = makeCutlist([
+      ['a', 0, 50],
+      ['a', 50, 100],
+    ]);
+    expect(normalize(twin.segments)).toHaveLength(1);
+    expect(normalize(setReframe(twin, 0, '16:9', frame).segments)).toHaveLength(2);
+    const cut = setReframe(base(), 0, '16:9', frame);
+    expect(setCamera(cut, 0, 'b').segments[0]!.reframe).toBeNull();
+  });
+
+  it('counts as an edit and ignores a missing shot', () => {
+    const cut = base();
+    expect(sameEdit(setReframe(cut, 0, '16:9', frame), cut)).toBe(false);
+    expect(setReframe(cut, 99, '16:9', frame)).toBe(cut);
   });
 });

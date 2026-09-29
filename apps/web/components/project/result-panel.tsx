@@ -34,7 +34,13 @@ export const RENDER_PRESET_LABELS: Record<string, string> = {
   'youtube-4k': 'YouTube 4K',
   master: 'Master (high quality, large)',
   draft: 'Draft (fast preview)',
+  'vertical-1080p': 'Vertical 9:16 (Shorts, Reels)',
+  'vertical-draft': 'Vertical 9:16 draft',
 };
+
+export function isVerticalPreset(preset: string | null | undefined): boolean {
+  return preset?.startsWith('vertical') ?? false;
+}
 
 export const NLE_FORMATS: { format: NleFormat; label: string; hint: string }[] = [
   { format: 'fcpxml', label: 'Final Cut / DaVinci Resolve', hint: '.fcpxml' },
@@ -303,7 +309,11 @@ export function ResultPanel({
               controls
               preload="metadata"
               src={api.exportFileUrl(latest.id)}
-              className="aspect-video w-full rounded-lg bg-black"
+              className={
+                isVerticalPreset(latest.preset)
+                  ? 'mx-auto aspect-[9/16] max-h-[70vh] rounded-lg bg-black'
+                  : 'aspect-video w-full rounded-lg bg-black'
+              }
             />
           </CardContent>
         </Card>

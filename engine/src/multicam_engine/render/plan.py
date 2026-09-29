@@ -24,7 +24,7 @@ from pathlib import Path
 from uuid import UUID
 
 from multicam_engine.media.probe import ProbeResult
-from multicam_engine.models.cutlist import AudioMode, CutList, Reframe
+from multicam_engine.models.cutlist import AudioMode, CutList, Reframe, Segment
 from multicam_engine.models.project import Clip, Project
 
 
@@ -132,6 +132,17 @@ def _covered_frames(
     return head, tail
 
 
+CENTRED = Reframe(cx=0.5, cy=0.5, scale=1.0)
+
+
+def _framing(segment: Segment, vertical: bool) -> Reframe | None:
+    """The crop for this output shape. A portrait (9:16) output always crops:
+    the segment's vertical framing, or a centred crop when there is none."""
+    if vertical:
+        return segment.reframe_vertical or CENTRED
+    return segment.reframe
+
+
 def covered_frames(
     timing: ClipTiming, fps: Fraction, start_frame: int, frames: int, src_fps: Fraction
 ) -> tuple[int, int]:
@@ -172,6 +183,7 @@ def build_plan(
     cutlist.check_against(project)
     fps = cutlist.fps.to_fraction()
     warnings: list[str] = []
+    vertical = (height or project.output.height) > (width or project.output.width)
     timings: dict[UUID, ClipTiming] = {}
     for clip in project.clips:
         if clip.id in probes:
@@ -212,7 +224,7 @@ def build_plan(
                 source_pts=timing.pts_at(first) if covered > 0 else None,
                 speed=timing.speed,
                 path=timing.path if covered > 0 else None,
-                reframe=seg.reframe,
+                reframe=_framing(seg, vertical),
             )
         )
 

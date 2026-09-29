@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import bisect
 from enum import StrEnum
+from itertools import pairwise
 from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
@@ -26,12 +27,47 @@ class SegmentSource(StrEnum):
     MANUAL = "manual"
 
 
+class ReframeKey(StrictModel):
+    """Crop centre at one timeline frame; the render moves linearly between keys."""
+
+    frame: int = Field(ge=0, description="Timeline frame")
+    cx: float = Field(ge=0.0, le=1.0)
+    cy: float = Field(ge=0.0, le=1.0)
+
+
 class Reframe(StrictModel):
-    """Crop/zoom for a segment. Normalized coordinates (0..1) of the crop center."""
+    """Crop/zoom for a segment. Normalized coordinates (0..1) of the crop centre.
+
+    The crop has the output's aspect ratio; ``scale`` 1 is the largest such crop
+    (the full frame when source and output have the same shape), 2 shows half
+    the width. With ``path`` the centre follows those keyframes (a slow pan that
+    keeps a face framed); ``cx``/``cy`` are then the starting point.
+    """
 
     cx: float = Field(ge=0.0, le=1.0)
     cy: float = Field(ge=0.0, le=1.0)
     scale: float = Field(ge=1.0, le=4.0)
+    path: list[ReframeKey] | None = None
+    manual: bool = Field(default=False, description="Set by the user: auto framing keeps it")
+
+    @model_validator(mode="after")
+    def _sorted_path(self) -> Reframe:
+        if self.path and any(a.frame >= b.frame for a, b in pairwise(self.path)):
+            raise ValueError("reframe path keys must have increasing frames")
+        return self
+
+    def center_at(self, frame: int) -> tuple[float, float]:
+        """Crop centre at a timeline frame (linear between keys, held outside)."""
+        keys = self.path
+        if not keys:
+            return self.cx, self.cy
+        if frame <= keys[0].frame:
+            return keys[0].cx, keys[0].cy
+        for a, b in pairwise(keys):
+            if frame <= b.frame:
+                f = (frame - a.frame) / (b.frame - a.frame)
+                return a.cx + (b.cx - a.cx) * f, a.cy + (b.cy - a.cy) * f
+        return keys[-1].cx, keys[-1].cy
 
 
 class _FrameRange(StrictModel):
@@ -55,6 +91,9 @@ class Segment(_FrameRange):
     clip_id: UUID
     source: SegmentSource = SegmentSource.AUTO
     reframe: Reframe | None = None
+    reframe_vertical: Reframe | None = Field(
+        default=None, description="Framing for 9:16 output (default: centred crop)"
+    )
 
 
 class RemovalKind(StrEnum):

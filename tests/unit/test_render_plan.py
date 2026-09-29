@@ -7,7 +7,7 @@ import pytest
 from multicam_engine.media.ffmpeg import FFmpegError
 from multicam_engine.media.probe import ProbeResult
 from multicam_engine.models import Clip, CutList, OutputSettings, Project, Segment
-from multicam_engine.models.cutlist import AudioConfig, AudioMode, Reframe
+from multicam_engine.models.cutlist import AudioConfig, AudioMode, Reframe, ReframeKey
 from multicam_engine.models.project import MediaInfo, SyncResult
 from multicam_engine.models.time import FPS_25, FPS_29_97, Rational
 from multicam_engine.render.encoders import codec_of, encoder_args
@@ -160,7 +160,40 @@ def test_black_piece_and_reframe() -> None:
     black = piece_filter(plan.pieces[1], None, plan, "p1")
     assert black.startswith("color=c=black:s=640x360:r=30000/1001,trim=end_frame=45")
     zoomed = piece_filter(plan.pieces[0], "0:v:0", plan, "p0")
-    assert "crop=w=iw/2.000000:h=ih/2.000000" in zoomed and "0.300000*iw" in zoomed
+    assert "crop=w='min(iw,ih*1.777778)/2.000000':h='min(ih,iw/1.777778)/2.000000'" in zoomed
+    assert "(0.300000)*iw" in zoomed
+
+
+def test_vertical_output_always_crops_and_follows_keyframes() -> None:
+    project, a, b, probes = _setup(b_offset_samples=0)
+    cl = _cutlist(project, [(a, 60), (b, 60)])
+    cl.segments[1].reframe_vertical = Reframe(
+        cx=0.3,
+        cy=0.5,
+        scale=1.0,
+        path=[ReframeKey(frame=60, cx=0.3, cy=0.5), ReframeKey(frame=90, cx=0.6, cy=0.5)],
+    )
+    plan = build_plan(project, cl, probes, width=540, height=960)
+    centred = piece_filter(plan.pieces[0], "0:v:0", plan, "p0")
+    assert "crop=w='min(iw,ih*0.562500)/1.000000'" in centred and "(0.500000)*iw" in centred
+    panning = piece_filter(plan.pieces[1], "1:v:0", plan, "p1")
+    # keys at t = 0 s and t = 30 frames later (1.001 s at 29.97)
+    assert (
+        "if(lt(t,0.0000),0.300000,if(lt(t,1.0010),0.300000+(0.29970030)*(t-0.0000),0.600000))"
+        in panning
+    )
+    horizontal = build_plan(project, cl, probes, width=640, height=360)
+    assert horizontal.pieces[0].reframe is None  # 16:9 keeps the whole frame
+
+
+def test_reframe_center_at() -> None:
+    keys = [ReframeKey(frame=10, cx=0.2, cy=0.4), ReframeKey(frame=20, cx=0.6, cy=0.4)]
+    r = Reframe(cx=0.2, cy=0.4, scale=1.5, path=keys)
+    assert r.center_at(0) == (0.2, 0.4) and r.center_at(15) == pytest.approx((0.4, 0.4))
+    assert r.center_at(99) == (0.6, 0.4)
+    with pytest.raises(ValueError):
+        same = [ReframeKey(frame=5, cx=0, cy=0), ReframeKey(frame=5, cx=1, cy=1)]
+        Reframe(cx=0.5, cy=0.5, scale=1, path=same)
 
 
 def test_chunk_command_inputs_and_frame_count(tmp_path: Path) -> None:

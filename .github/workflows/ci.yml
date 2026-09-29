@@ -22,7 +22,7 @@ jobs:
           enable-cache: true
       - run: uv python install
       - run: uv sync --locked
-      - run: uv run python packaging/scripts/fetch_models.py --only silero-vad
+      - run: uv run python packaging/scripts/fetch_models.py
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy

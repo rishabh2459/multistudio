@@ -487,7 +487,7 @@
     },
     "Reframe": {
       "additionalProperties": false,
-      "description": "Crop/zoom for a segment. Normalized coordinates (0..1) of the crop center.",
+      "description": "Crop/zoom for a segment. Normalized coordinates (0..1) of the crop centre.\n\nThe crop has the output's aspect ratio; ``scale`` 1 is the largest such crop\n(the full frame when source and output have the same shape), 2 shows half\nthe width. With ``path`` the centre follows those keyframes (a slow pan that\nkeeps a face framed); ``cx``/``cy`` are then the starting point.",
       "properties": {
         "cx": {
           "maximum": 1.0,
@@ -499,6 +499,25 @@
           "minimum": 0.0,
           "type": "number"
         },
+        "manual": {
+          "default": false,
+          "description": "Set by the user: auto framing keeps it",
+          "type": "boolean"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ReframeKey"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "scale": {
           "maximum": 4.0,
           "minimum": 1.0,
@@ -508,9 +527,39 @@
       "required": [
         "cx",
         "cy",
-        "scale"
+        "scale",
+        "path",
+        "manual"
       ],
       "title": "Reframe",
+      "type": "object"
+    },
+    "ReframeKey": {
+      "additionalProperties": false,
+      "description": "Crop centre at one timeline frame; the render moves linearly between keys.",
+      "properties": {
+        "cx": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "cy": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "frame": {
+          "description": "Timeline frame",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "frame",
+        "cx",
+        "cy"
+      ],
+      "title": "ReframeKey",
       "type": "object"
     },
     "Removal": {
@@ -574,6 +623,18 @@
           ],
           "default": null
         },
+        "reframe_vertical": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reframe"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Framing for 9:16 output (default: centred crop)"
+        },
         "source": {
           "$ref": "#/$defs/SegmentSource",
           "default": "auto"
@@ -588,7 +649,8 @@
         "end_frame",
         "clip_id",
         "source",
-        "reframe"
+        "reframe",
+        "reframe_vertical"
       ],
       "title": "Segment",
       "type": "object"

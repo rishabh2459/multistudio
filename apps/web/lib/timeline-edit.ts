@@ -17,7 +17,8 @@ export function normalize(segments: Segment[]): Segment[] {
   for (const seg of segments) {
     if (seg.end_frame <= seg.start_frame) continue;
     const prev = out[out.length - 1];
-    if (prev && prev.clip_id === seg.clip_id && !prev.reframe && !seg.reframe) {
+    const plain = (x: Segment) => !x.reframe && !x.reframe_vertical;
+    if (prev && prev.clip_id === seg.clip_id && plain(prev) && plain(seg)) {
       out[out.length - 1] = {
         ...prev,
         end_frame: seg.end_frame,
@@ -53,7 +54,14 @@ export function setCamera(cut: CutList, index: number, clipId: string): CutList 
   const seg = cut.segments[index];
   if (!seg || seg.clip_id === clipId) return cut;
   const segments = cut.segments.slice();
-  segments[index] = { ...seg, clip_id: clipId, source: 'manual', reframe: null };
+  // The old camera's framing means nothing for the new one.
+  segments[index] = {
+    ...seg,
+    clip_id: clipId,
+    source: 'manual',
+    reframe: null,
+    reframe_vertical: null,
+  };
   return withSegments(cut, segments);
 }
 
@@ -120,7 +128,12 @@ function cutWithFirstAs(cut: CutList): CutList {
   // The first shot takes the second one's camera, then they merge.
   const [first, second] = cut.segments;
   const segments = cut.segments.slice();
-  segments[0] = { ...first!, clip_id: second!.clip_id, reframe: second!.reframe ?? null };
+  segments[0] = {
+    ...first!,
+    clip_id: second!.clip_id,
+    reframe: second!.reframe ?? null,
+    reframe_vertical: second!.reframe_vertical ?? null,
+  };
   return { ...cut, segments };
 }
 
@@ -144,7 +157,29 @@ export function sameEdit(a: CutList, b: CutList): boolean {
   return a.segments.every((s, i) => {
     const t = b.segments[i]!;
     return (
-      s.clip_id === t.clip_id && s.start_frame === t.start_frame && s.end_frame === t.end_frame
+      s.clip_id === t.clip_id &&
+      s.start_frame === t.start_frame &&
+      s.end_frame === t.end_frame &&
+      JSON.stringify(s.reframe ?? null) === JSON.stringify(t.reframe ?? null) &&
+      JSON.stringify(s.reframe_vertical ?? null) === JSON.stringify(t.reframe_vertical ?? null)
     );
   });
+}
+
+/** Set (or clear) the framing of shot `index` for one output shape, by hand. */
+export function setReframe(
+  cut: CutList,
+  index: number,
+  aspect: '16:9' | '9:16',
+  reframe: Segment['reframe'],
+): CutList {
+  const seg = cut.segments[index];
+  if (!seg) return cut;
+  const value = reframe ? { ...reframe, path: null, manual: true } : null;
+  const segments = cut.segments.slice();
+  segments[index] =
+    aspect === '16:9'
+      ? { ...seg, reframe: value, source: 'manual' }
+      : { ...seg, reframe_vertical: value, source: 'manual' };
+  return { ...cut, segments };
 }

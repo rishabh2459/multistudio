@@ -6,7 +6,7 @@ import { useStore } from 'zustand';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import type { Clip } from '@/lib/api';
+import type { Clip, TimelineClip } from '@/lib/api';
 import { clipDisplayName } from '@/lib/cutlist';
 import { SHORTCUTS } from '@/lib/editor-keys';
 import type { EditorStore } from '@/lib/editor-store';
@@ -21,13 +21,17 @@ import {
   split,
 } from '@/lib/timeline-edit';
 
+import { FramingControls } from './framing-controls';
+
 export function Inspector({
   store,
   clips,
+  timings,
   fps,
 }: {
   store: EditorStore;
   clips: Clip[];
+  timings?: Map<string, TimelineClip>;
   fps: Rational;
 }) {
   const cut = useStore(store, (s) => s.cut);
@@ -91,6 +95,7 @@ export function Inspector({
           <Trash2 /> Remove shot
         </Button>
       </div>
+      <FramingControls store={store} index={index} timing={timings?.get(seg.clip_id)} />
       <dl className="grid grid-cols-[6rem_1fr] gap-x-2 gap-y-1 text-xs">
         {SHORTCUTS.map(([keys, what]) => (
           <div key={keys} className="contents">

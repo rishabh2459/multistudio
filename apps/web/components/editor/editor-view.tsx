@@ -1,6 +1,7 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
+import { ScanFace } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 
@@ -14,7 +15,7 @@ import { createEditorStore, type EditorStore } from '@/lib/editor-store';
 import { formatDuration, type Rational } from '@/lib/format';
 import { latestJob } from '@/lib/jobs';
 import { frameToSeconds, secondsToFrame } from '@/lib/media-time';
-import { qk, useStartJob, useTimeline } from '@/lib/queries';
+import { qk, useStartJob, useSystemInfo, useTimeline } from '@/lib/queries';
 import {
   durationFrames,
   nextCut,
@@ -183,6 +184,11 @@ function EditorWorkspace({
     [timeline.data],
   );
   const proxyJob = latestJob(jobs, ['proxy']);
+  const reframeJob = latestJob(jobs, ['reframe']);
+  const reframing = reframeJob !== undefined && !isFinished(reframeJob);
+  const saved = useStore(store, (s) => s.save.state === 'saved');
+  const info = useSystemInfo();
+  const faceModel = info.data?.face_model_available ?? true;
   const audioClipId =
     project.reference_clip_id ?? timeline.data?.clips.find((c) => c.has_audio)?.clip_id ?? null;
 
@@ -215,6 +221,23 @@ function EditorWorkspace({
   return (
     <div className="flex flex-col gap-4" data-testid="editor">
       {proxyJob && !isFinished(proxyJob) && <JobProgress job={proxyJob} />}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!saved || reframing || startJob.isPending}
+          title={saved ? undefined : 'Wait until your changes are saved'}
+          onClick={() => startJob.mutate({ kind: 'reframe' })}
+        >
+          <ScanFace /> Auto framing
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {faceModel
+            ? 'Follows faces and adds punch-ins. Shots you framed by hand are kept.'
+            : 'Face model not installed: shots use a centred crop.'}
+        </span>
+      </div>
+      {reframeJob && reframing && <JobProgress job={reframeJob} />}
       <ErrorAlert error={timeline.error ?? startJob.error} />
       <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
         <ProgramMonitor
@@ -226,7 +249,7 @@ function EditorWorkspace({
         />
         <Card>
           <CardContent className="pt-5">
-            <Inspector store={store} clips={clips} fps={fps} />
+            <Inspector store={store} clips={clips} timings={timings} fps={fps} />
           </CardContent>
         </Card>
       </div>
@@ -251,6 +274,11 @@ export function EditorView({
   jobs: Job[];
   onNext: () => void;
 }) {
+  // Reopen the editor on versions made by jobs (auto framing), not on its own saves.
+  const auto = cutlist && cutlist.source !== 'manual' ? cutlist.version : null;
+  const [base, setBase] = useState(auto);
+  if (auto !== null && auto !== base) setBase(auto);
+
   if (!cutlist) {
     return <ErrorAlert error={new Error('Run the auto edit first.')} />;
   }
@@ -267,7 +295,12 @@ export function EditorView({
         <Button onClick={onNext}>Continue to export</Button>
       </CardHeader>
       <CardContent>
-        <EditorWorkspace key={project.id} project={project} initial={cutlist} jobs={jobs} />
+        <EditorWorkspace
+          key={`${project.id}-${base ?? 'edit'}`}
+          project={project}
+          initial={cutlist}
+          jobs={jobs}
+        />
       </CardContent>
     </Card>
   );

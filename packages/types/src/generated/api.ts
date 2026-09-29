@@ -667,7 +667,7 @@ export interface components {
          * JobKind
          * @enum {string}
          */
-        JobKind: "probe" | "sync" | "analyze" | "decide" | "auto" | "render" | "proxy";
+        JobKind: "probe" | "sync" | "analyze" | "decide" | "auto" | "render" | "proxy" | "reframe";
         /** JobOut */
         JobOut: {
             /**
@@ -869,15 +869,68 @@ export interface components {
         };
         /**
          * Reframe
-         * @description Crop/zoom for a segment. Normalized coordinates (0..1) of the crop center.
+         * @description Crop/zoom for a segment. Normalized coordinates (0..1) of the crop centre.
+         *
+         *     The crop has the output's aspect ratio; ``scale`` 1 is the largest such crop
+         *     (the full frame when source and output have the same shape), 2 shows half
+         *     the width. With ``path`` the centre follows those keyframes (a slow pan that
+         *     keeps a face framed); ``cx``/``cy`` are then the starting point.
          */
-        Reframe: {
+        "Reframe-Input": {
             /** Cx */
             cx: number;
             /** Cy */
             cy: number;
+            /**
+             * Manual
+             * @description Set by the user: auto framing keeps it
+             * @default false
+             */
+            manual?: boolean;
+            /** Path */
+            path?: components["schemas"]["ReframeKey"][] | null;
             /** Scale */
             scale: number;
+        };
+        /**
+         * Reframe
+         * @description Crop/zoom for a segment. Normalized coordinates (0..1) of the crop centre.
+         *
+         *     The crop has the output's aspect ratio; ``scale`` 1 is the largest such crop
+         *     (the full frame when source and output have the same shape), 2 shows half
+         *     the width. With ``path`` the centre follows those keyframes (a slow pan that
+         *     keeps a face framed); ``cx``/``cy`` are then the starting point.
+         */
+        "Reframe-Output": {
+            /** Cx */
+            cx: number;
+            /** Cy */
+            cy: number;
+            /**
+             * Manual
+             * @description Set by the user: auto framing keeps it
+             * @default false
+             */
+            manual: boolean;
+            /** Path */
+            path: components["schemas"]["ReframeKey"][] | null;
+            /** Scale */
+            scale: number;
+        };
+        /**
+         * ReframeKey
+         * @description Crop centre at one timeline frame; the render moves linearly between keys.
+         */
+        ReframeKey: {
+            /** Cx */
+            cx: number;
+            /** Cy */
+            cy: number;
+            /**
+             * Frame
+             * @description Timeline frame
+             */
+            frame: number;
         };
         /** Removal */
         "Removal-Input": {
@@ -928,7 +981,9 @@ export interface components {
              * @description Exclusive
              */
             end_frame: number;
-            reframe?: components["schemas"]["Reframe"] | null;
+            reframe?: components["schemas"]["Reframe-Input"] | null;
+            /** @description Framing for 9:16 output (default: centred crop) */
+            reframe_vertical?: components["schemas"]["Reframe-Input"] | null;
             /** @default auto */
             source?: components["schemas"]["SegmentSource"];
             /** Start Frame */
@@ -946,7 +1001,9 @@ export interface components {
              * @description Exclusive
              */
             end_frame: number;
-            reframe: components["schemas"]["Reframe"] | null;
+            reframe: components["schemas"]["Reframe-Output"] | null;
+            /** @description Framing for 9:16 output (default: centred crop) */
+            reframe_vertical: components["schemas"]["Reframe-Output"] | null;
             /** @default auto */
             source: components["schemas"]["SegmentSource"];
             /** Start Frame */
@@ -1005,6 +1062,8 @@ export interface components {
             encoders_hevc: string[] | null;
             /** Engine Version */
             engine_version: string;
+            /** Face Model Available */
+            face_model_available: boolean;
             /** Ffmpeg */
             ffmpeg: string | null;
             /** Ffmpeg Version */
@@ -1037,10 +1096,17 @@ export interface components {
             has_audio: boolean;
             /** Has Proxy */
             has_proxy: boolean;
+            /** Height */
+            height: number;
             /** Media Offset S */
             media_offset_s: number;
             /** Speed */
             speed: number;
+            /**
+             * Width
+             * @description Picture size as displayed (after rotation)
+             */
+            width: number;
         };
         /** TimelineOut */
         TimelineOut: {

@@ -60,6 +60,8 @@ async def timeline(project_id: UUID, session: SessionDep, state: StateDep) -> Ti
                 fps=result.media.fps,
                 has_audio=result.audio_stream_index is not None,
                 has_proxy=media.existing_proxy(clip, proxies) is not None,
+                width=result.media.width,
+                height=result.media.height,
             )
         )
     latest = latest_cutlist(session, row.id)

@@ -9,12 +9,12 @@
       "sha256": "2623a2953f6ff3d2c1e61740c6cdb7168133479b267dfef114a4a3cc5bdd788f"
     },
     {
-      "name": "mediapipe-blaze-face-short-range",
+      "name": "yunet-face",
       "phase": 8,
-      "license": "Apache-2.0",
-      "url": "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
-      "dest": "blaze_face_short_range.tflite",
-      "sha256": "b4578f35940bf5a1a655214a1cce5cab13eba73c1297cd78e1a04c2380b0152f"
+      "license": "MIT",
+      "url": "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+      "dest": "face_detection_yunet_2023mar.onnx",
+      "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
     }
   ]
 }

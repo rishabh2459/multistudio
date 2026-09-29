@@ -186,7 +186,7 @@ size advantage matters little here.
 | Model runtime | ONNX Runtime | MIT | Free |
 | Transcription | faster-whisper (CTranslate2 backend) | MIT | Free |
 | Whisper model weights | OpenAI Whisper (converted to CT2) | MIT | Free |
-| Face detection | MediaPipe | Apache-2.0 | Free |
+| Face detection | YuNet (OpenCV Zoo) via ONNX Runtime | MIT | Free |
 | Image ops | OpenCV (headless) | Apache-2.0 | Free |
 | Smoothing | Own EMA/Kalman implementation | Ours | Free |
 | Timeline export | Own FCPXML / Premiere XML / EDL writers | Ours | Free |
@@ -586,12 +586,13 @@ Total for the desktop product: **~4–5 months full-time**.
 **Goal:** Dynamic framing + vertical shorts.
 
 **Tasks**
-- [ ] MediaPipe face detection on sampled frames; track faces per clip
-- [ ] Smoothing (EMA/Kalman) + dead-zone to prevent jitter
-- [ ] Punch-in variation: alternate wide/tight on the same camera
-- [ ] 9:16 vertical export keeping the active speaker centered
-- [ ] Per-segment zoom editable in the timeline
-- [ ] Graceful fallback when no face is found (center crop, no crash)
+- [x] Face detection on sampled frames (YuNet ONNX, keyframes every 0.5 s, cached per clip); track faces per clip (speaker = nearest face, wide = group box)
+- [x] Smoothing + dead zone (zero-lag forward/backward ease, keyframes simplified to ≤1 % error)
+- [x] Punch-in variation: alternate wide/tight on the same camera, split only at the speaker's pauses (calm / balanced / dynamic)
+- [x] 9:16 vertical export keeping the active speaker centred (`vertical-1080p`, `vertical-draft`)
+- [x] Per-segment zoom editable in the timeline (16:9 / 9:16 toggle, zoom + position, live crop preview; manual framing is kept by auto framing)
+- [x] Graceful fallback when no face is found or the model is missing (hold, then ease back to a centred crop; no crash)
+- [ ] Check on real footage, incl. low light and two people in one shot
 
 **Done when:** Both 16:9 and 9:16 outputs keep faces smoothly framed; low light degrades gracefully.
 
@@ -760,7 +761,7 @@ Record every significant decision here (or in `docs/DECISIONS.md`). **D14 onward
 | 5 — Next.js UI v1 | ✅ Done | 2026-09-25 | 2026-09-25 | Build, Vitest (32) and Playwright e2e pass on the Mac (commit bf31eb6) |
 | 6 — Electron desktop | 🔄 In progress | 2026-09-25 | | App + sidecar + frozen backend work end to end (Electron e2e incl. H.264 playback, frozen build smoke test). Pending: first macOS/Windows installers + clean-machine test |
 | 7 — Timeline editor + export | 🔄 In progress | 2026-09-26 | | Editor + exports work end to end (web + Electron e2e; exported cuts = rendered frames). Pending: open the exports in Resolve / Premiere on the Mac |
-| 8 — Reframe | ⬜ Not started | | | |
+| 8 — Reframe | 🔄 In progress | 2026-09-26 | | Auto framing + vertical export work end to end (synthetic + test-image video; web e2e). Pending: real footage / low light check |
 | 9 — Captions | ⬜ Not started | | | |
 | 10 — Filler removal | ⬜ Not started | | | |
 | 11 — Packaging & distribution | ⬜ Not started | | | |

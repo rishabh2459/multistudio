@@ -9,7 +9,7 @@ Everything runs on your own machine using free, open-source components.
 🧾 **Decisions:** [`docs/DECISIONS.md`](docs/DECISIONS.md) ·
 🎥 **Test footage:** [`docs/TEST_FOOTAGE.md`](docs/TEST_FOOTAGE.md)
 
-**Current phase:** 4 — Local backend done (real-footage checks for Phases 1–3 pending); next: Phase 5 UI
+**Current phase:** 8 — Auto framing + vertical (9:16) export done in code; real-footage checks pending (Phases 1–3, 7, 8); next: Phase 9 captions
 
 ---
 
@@ -60,7 +60,7 @@ Commit `uv.lock`, `pnpm-lock.yaml`, `schemas/` and `packages/types/src/generated
 | `make gt-build REC=samples/T1` | Build ground truth from Audacity labels |
 | `make gt-check` | Validate all test recordings |
 | `make gt-eval REC=samples/T1` | Score sync accuracy against ground truth |
-| `make fetch-models` | Download pinned model files |
+| `make fetch-models` | Download pinned model files (Silero VAD, YuNet faces) |
 | `uv run multicam probe cam1.mp4` | Frame rate, VFR, duration, audio of a file |
 | `uv run multicam sync cam1.mp4 cam2.mp4 --out sync.json` | Sync clips by audio |
 | `uv run multicam cutlist --sync sync.json --label cam1.mp4=Host --wide wide.mp4` | Auto-edit: who speaks → camera cuts (writes cutlist.json + project.json) |

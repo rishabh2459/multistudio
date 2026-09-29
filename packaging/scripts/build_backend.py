@@ -40,7 +40,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = ROOT / "packaging" / "pyinstaller" / "multicam-api.spec"
 DIST = ROOT / "packaging" / "dist"
 WORK = ROOT / "packaging" / "build" / "pyinstaller"
-MODEL = ROOT / "packaging" / "models" / "silero_vad.onnx"
+MODELS = ROOT / "packaging" / "models"
+BUNDLED_MODELS = ("silero_vad.onnx", "face_detection_yunet_2023mar.onnx")
 MANIFEST = ROOT / "packaging" / "models" / "manifest.json"
 EXE_SUFFIX = ".exe" if PLATFORM == "win32" else ""
 TOOLS = ("ffmpeg", "ffprobe")
@@ -108,15 +109,16 @@ def find_ffmpeg(ffmpeg_dir: Path | None, allow_system: bool) -> dict[str, Path]:
     return found
 
 
-def check_model() -> None:
-    """The bundled model must be the pinned file (not an error page or LFS pointer)."""
-    if not MODEL.is_file():
-        raise BuildError(f"{MODEL.name} missing: run `make fetch-models` first")
+def check_models() -> None:
+    """Bundled models must be the pinned files (not an error page or LFS pointer)."""
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    expected = next(m["sha256"] for m in manifest["models"] if m["dest"] == MODEL.name)
-    actual = hashlib.sha256(MODEL.read_bytes()).hexdigest()
-    if actual != expected:
-        raise BuildError(f"{MODEL.name} does not match the manifest: run `make fetch-models`")
+    pinned = {m["dest"]: m["sha256"] for m in manifest["models"]}
+    for name in BUNDLED_MODELS:
+        path = MODELS / name
+        if not path.is_file():
+            raise BuildError(f"{name} missing: run `make fetch-models` first")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != pinned.get(name):
+            raise BuildError(f"{name} does not match the manifest: run `make fetch-models`")
 
 
 def run_pyinstaller() -> Path:
@@ -219,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-smoke-test", action="store_true")
     args = parser.parse_args(argv)
     try:
-        check_model()
+        check_models()
         tools = find_ffmpeg(args.ffmpeg_dir, args.allow_system_ffmpeg)
         out = run_pyinstaller()
         bundle_tools(out, tools)

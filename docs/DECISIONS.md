@@ -53,6 +53,11 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | D60 | 2026-09-26 | Editor preview = 540p proxies (`proxy` job, short GOP) played in one `<video>` per camera, re-seeked only when >0.25 s off while playing; audio from the reference camera | Smooth multi-angle scrubbing without decoding 4K originals; one audio source avoids comb filtering |
 | D61 | 2026-09-26 | Edit state lives in a per-project zustand store (undo/redo stack, 200 steps); every change is autosaved 0.8 s later as a new CutList version | Nothing is lost; versions double as a history the export and render always read from (latest) |
 | D62 | 2026-09-26 | A camera key/click switches cameras *from the playhead* (splits the shot), like a vision mixer; double-click on a camera lane does the same at that point | Matches how multicam editing is done live; the simplest mental model for users |
+| D63 | 2026-09-26 | Face detection: YuNet 2023mar ONNX (OpenCV Zoo, MIT, 230 KB) on the existing onnxruntime instead of MediaPipe; pure numpy pre/post-processing | No new heavy dependency (MediaPipe wheels are large and lag Python releases); ~25 ms per 640 px frame on CPU |
+| D64 | 2026-09-26 | Faces sampled from keyframes only (`-skip_frame nokey`, 1 frame / 0.5 s), full decode only if keyframes are too sparse; detections cached as a JSON artifact per clip | Decoding keyframes is ~10× faster than full decode; re-running auto framing is instant |
+| D65 | 2026-09-26 | Camera path = dead zone + exponential ease run forward and backward (zero lag), then RDP-simplified to keyframes; the render crops with piecewise-linear `x(t)`/`y(t)` expressions | No lag behind the speaker, no jitter, small cutlists; one ffmpeg crop per shot |
+| D66 | 2026-09-26 | Punch-ins split a long same-camera run at the on-screen speaker's pause nearest the middle, alternating 1.0× / tight; never mid-sentence | Cuts on pauses feel natural; deterministic, so re-running gives the same result |
+| D67 | 2026-09-26 | Segment framing is two fields: `reframe` (16:9, None = full frame) and `reframe_vertical` (9:16, None = centred crop), each optional `path` keys + `manual` flag; auto framing never overwrites manual framing | Both outputs from one edit; hand-tuned shots survive re-runs |
 | D29 | 2026-09-23 | Continue Phase 1 before test footage exists, using synthetic signals + generated video files; phase is marked done only after the real-footage benchmark passes | Unblocks development; accuracy on real devices still has to be proven |
 
 ## Dependencies added
@@ -67,7 +72,7 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | json-schema-to-typescript | MIT | dev only | Type generation |
 | numpy | BSD-3 | engine | Signal arrays (Phase 1) |
 | scipy | BSD-3 | engine | FFT, resampling, filters (Phase 1) |
-| onnxruntime | MIT | engine | Runs the Silero VAD model (Phase 2) |
+| onnxruntime | MIT | engine | Runs the Silero VAD model (Phase 2) and the YuNet face model (Phase 8) |
 | fastapi, starlette | MIT / BSD-3 | api | HTTP API (Phase 4) |
 | uvicorn | BSD-3 | api | ASGI server |
 | sqlalchemy, alembic | MIT | api | Database + migrations |

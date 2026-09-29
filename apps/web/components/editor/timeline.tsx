@@ -149,6 +149,7 @@ function ProgramLane({ store, clips, fps }: { store: EditorStore; clips: Clip[];
   const cut = useStore(store, (s) => s.cut);
   const zoom = useStore(store, (s) => s.zoom);
   const selected = useStore(store, (s) => s.selected);
+  const aspect = useStore(store, (s) => s.aspect);
   const [drag, setDrag] = useState<{ index: number; frame: number } | null>(null);
   const laneRef = useRef<HTMLDivElement>(null);
 
@@ -176,6 +177,7 @@ function ProgramLane({ store, clips, fps }: { store: EditorStore; clips: Clip[];
       {cut.segments.map((s, i) => {
         const clip = clips.find((c) => c.id === s.clip_id);
         const number = clips.findIndex((c) => c.id === s.clip_id) + 1;
+        const zoomed = (aspect === '16:9' ? s.reframe : s.reframe_vertical)?.scale ?? 1;
         return (
           <button
             key={`${s.start_frame}-${s.clip_id}`}
@@ -198,6 +200,11 @@ function ProgramLane({ store, clips, fps }: { store: EditorStore; clips: Clip[];
             }}
           >
             {number > 0 ? number : '?'}
+            {zoomed > 1.01 && (
+              <span className="ml-1 font-normal opacity-80" data-testid="shot-zoom">
+                {zoomed.toFixed(1)}×
+              </span>
+            )}
           </button>
         );
       })}

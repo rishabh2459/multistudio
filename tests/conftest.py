@@ -9,6 +9,7 @@ import pytest
 
 from multicam_engine.analysis.vad import SILERO_MODEL_FILE, models_dir
 from multicam_engine.media.ffmpeg import FFmpegNotFoundError, find_tool
+from multicam_engine.reframe.detect import YUNET_MODEL_FILE
 
 
 @pytest.fixture(scope="session")
@@ -33,4 +34,16 @@ def silero_model() -> Path:
         if os.environ.get("MULTICAM_REQUIRE_VAD") == "1":
             pytest.fail(f"Silero model required but missing: {path}")
         pytest.skip(f"Silero model not fetched ({path}); run: make fetch-models")
+    return path
+
+
+@pytest.fixture(scope="session")
+def face_model() -> Path:
+    """Path to the YuNet face model. Skips if not fetched, unless
+    ``MULTICAM_REQUIRE_FACE=1`` - then it fails instead."""
+    path = models_dir() / YUNET_MODEL_FILE
+    if not path.is_file():
+        if os.environ.get("MULTICAM_REQUIRE_FACE") == "1":
+            pytest.fail(f"face model required but missing: {path}")
+        pytest.skip(f"face model not fetched ({path}); run: make fetch-models")
     return path

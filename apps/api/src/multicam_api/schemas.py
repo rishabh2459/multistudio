@@ -33,6 +33,7 @@ class SystemInfo(ApiModel):
     ffmpeg: str | None
     ffmpeg_version: str | None
     vad_model_available: bool
+    face_model_available: bool
     encoders_h264: list[str] | None = Field(description="None until requested with ?encoders=true")
     encoders_hevc: list[str] | None
     render_presets: list[str]
@@ -132,6 +133,7 @@ class JobKind(StrEnum):
     AUTO = "auto"  # probe + sync + analyze + decide
     RENDER = "render"  # final video from the latest cutlist
     PROXY = "proxy"  # low-resolution previews for the timeline editor
+    REFRAME = "reframe"  # auto framing: faces -> punch-ins, 16:9 and 9:16 crops
 
 
 class JobStatus(StrEnum):
@@ -157,6 +159,18 @@ class DecideParams(ApiModel):
 class AutoParams(ApiModel):
     vad: Literal["auto", "silero", "energy"] = "auto"
     preset: Preset | None = None
+    framing: bool = Field(default=False, description="Also run auto framing (faces, punch-ins)")
+
+
+PunchLevel = Literal["off", "calm", "balanced", "dynamic"]
+
+
+class ReframeParams(ApiModel):
+    punch: PunchLevel | None = Field(
+        default=None, description="Punch-ins on long shots; default follows the editing style"
+    )
+    horizontal: bool = True
+    vertical: bool = True
 
 
 class RenderParams(ApiModel):
@@ -180,6 +194,7 @@ PARAMS_BY_KIND: dict[JobKind, type[ApiModel]] = {
     JobKind.AUTO: AutoParams,
     JobKind.RENDER: RenderParams,
     JobKind.PROXY: EmptyParams,
+    JobKind.REFRAME: ReframeParams,
 }
 
 
@@ -236,6 +251,8 @@ class TimelineClip(ApiModel):
     fps: Rational
     has_audio: bool
     has_proxy: bool
+    width: int = Field(description="Picture size as displayed (after rotation)")
+    height: int
 
 
 class TimelineOut(ApiModel):

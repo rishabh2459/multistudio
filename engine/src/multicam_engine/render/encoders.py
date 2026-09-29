@@ -56,6 +56,10 @@ _PRESET_LIST = (
                  None, None, "hevc", 80_000, 320),
     OutputPreset("draft", "Fast preview (H.264, 4 Mbps, 720p)",
                  1280, 720, "h264", 4_000, 160, fast=True),
+    OutputPreset("vertical-1080p", "Vertical 9:16 for Shorts / Reels / TikTok (H.264, 10 Mbps)",
+                 1080, 1920, "h264", 10_000, 320),
+    OutputPreset("vertical-draft", "Vertical 9:16 fast preview (H.264, 3 Mbps, 540x960)",
+                 540, 960, "h264", 3_000, 160, fast=True),
 )  # fmt: skip
 PRESETS: dict[str, OutputPreset] = {p.name: p for p in _PRESET_LIST}
 

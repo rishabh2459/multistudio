@@ -40,12 +40,20 @@ class JobContext:
     cancel_event: threading.Event
     _last_write: float = 0.0
     _span: tuple[float, float] = (0.0, 1.0)
+    _outer: tuple[float, float] = (0.0, 1.0)
     warnings: list[str] = field(default_factory=list)
 
     # -- progress ----------------------------------------------------------
     def span(self, start: float, end: float) -> None:
         """Map the next ``report`` fractions (0..1) into ``start..end`` of the job."""
         self._span = (start, end)
+        self._outer = (start, end)
+
+    def span_part(self, index: int, count: int) -> None:
+        """Within the current span, report the next fractions for part ``index`` of ``count``."""
+        lo, hi = self._outer
+        width = (hi - lo) / max(1, count)
+        self._span = (lo + width * index, lo + width * min(count, index + 1))
 
     def report(
         self, stage: str, fraction: float, message: str = "", *, force: bool = False
