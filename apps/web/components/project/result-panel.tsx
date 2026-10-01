@@ -44,12 +44,14 @@ export function isVerticalPreset(preset: string | null | undefined): boolean {
 
 export const NLE_FORMATS: { format: NleFormat; label: string; hint: string }[] = [
   { format: 'fcpxml', label: 'Final Cut / DaVinci Resolve', hint: '.fcpxml' },
+  { format: 'fcpxml_multicam', label: 'Final Cut Pro (multicam clip)', hint: '.fcpxml' },
   { format: 'xmeml', label: 'Premiere Pro', hint: '.xml' },
   { format: 'edl', label: 'EDL (cuts only)', hint: '.edl' },
 ];
 
 export const EXPORT_KIND_LABELS: Record<string, string> = {
   fcpxml: 'FCPXML',
+  fcpxml_multicam: 'FCPXML multicam',
   xmeml: 'Premiere XML',
   edl: 'EDL',
 };

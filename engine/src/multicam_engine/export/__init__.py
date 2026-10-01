@@ -18,14 +18,24 @@ from multicam_engine.export.xmeml import to_xmeml
 
 class NleFormat(StrEnum):
     FCPXML = "fcpxml"  # Final Cut Pro, DaVinci Resolve
+    FCPXML_MULTICAM = "fcpxml_multicam"  # Final Cut Pro: a multicam clip + angle switches
     XMEML = "xmeml"  # Adobe Premiere Pro, DaVinci Resolve
     EDL = "edl"  # anything (video cuts only)
 
 
-EXTENSIONS = {NleFormat.FCPXML: ".fcpxml", NleFormat.XMEML: ".xml", NleFormat.EDL: ".edl"}
+EXTENSIONS = {
+    NleFormat.FCPXML: ".fcpxml",
+    NleFormat.FCPXML_MULTICAM: ".fcpxml",
+    NleFormat.XMEML: ".xml",
+    NleFormat.EDL: ".edl",
+}
 
 
 def write_nle(timeline: NleTimeline, fmt: NleFormat) -> str:
+    if fmt is NleFormat.FCPXML_MULTICAM:
+        raise ValueError(
+            "multicam FCPXML is written from an EditPlan (editplan.to_fcpxml_multicam)"
+        )
     if fmt is NleFormat.FCPXML:
         return to_fcpxml(timeline)
     if fmt is NleFormat.XMEML:

@@ -307,6 +307,9 @@ export interface paths {
         /**
          * Export Session
          * @description Write the plan as a file the host can import (Rule C fallback).
+         *
+         *     ``fcpxml`` with method ``multicam`` (or ``fcpxml_multicam``) writes a multicam
+         *     clip with angle switches (Final Cut, Resolve).
          */
         get: operations["export_session_api_plugin_v1_sessions__session_id__export_get"];
         put?: never;
@@ -1361,7 +1364,7 @@ export interface components {
          * NleFormat
          * @enum {string}
          */
-        NleFormat: "fcpxml" | "xmeml" | "edl";
+        NleFormat: "fcpxml" | "fcpxml_multicam" | "xmeml" | "edl";
         /** OutputSettings */
         OutputSettings: {
             fps: components["schemas"]["Rational"];
@@ -3134,6 +3137,7 @@ export interface operations {
             query?: {
                 format?: string;
                 version?: number | null;
+                method?: components["schemas"]["PlanMethod"] | null;
             };
             header?: never;
             path: {

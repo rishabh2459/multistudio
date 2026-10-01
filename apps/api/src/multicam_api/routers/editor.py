@@ -31,7 +31,8 @@ from multicam_api.schemas import (
 from multicam_api.services import media
 from multicam_api.services.projects import latest_cutlist, project_to_engine
 from multicam_api.views import export_out
-from multicam_engine.export import EXTENSIONS, build_nle_timeline, write_nle
+from multicam_engine.editplan import PlanMethod, build_edit_plan, to_fcpxml_multicam
+from multicam_engine.export import EXTENSIONS, NleFormat, build_nle_timeline, write_nle
 from multicam_engine.media.probe import ProbeError
 from multicam_engine.models import CutList, OutputSettings
 
@@ -139,10 +140,17 @@ def export_timeline(
             continue
     try:
         timeline = build_nle_timeline(project, cutlist, probes, name=row.name)
+        if body.format is NleFormat.FCPXML_MULTICAM:
+            plan = build_edit_plan(
+                project, cutlist, probes, method=PlanMethod.MULTICAM, name=row.name
+            )
+            text = to_fcpxml_multicam(plan)
+        else:
+            text = write_nle(timeline, body.format)
     except ValueError as exc:
         raise HTTPException(UNPROCESSABLE, f"{exc}. Relink missing files and try again.") from exc
-    text = write_nle(timeline, body.format)
-    name = f"{_slug(row.name)}-v{cut_row.version}{EXTENSIONS[body.format]}"
+    suffix = "-multicam" if body.format is NleFormat.FCPXML_MULTICAM else ""
+    name = f"{_slug(row.name)}-v{cut_row.version}{suffix}{EXTENSIONS[body.format]}"
     out = (
         Path(body.output_path) if body.output_path else state.storage.exports_dir(project_id) / name
     )

@@ -790,7 +790,7 @@ Add these to `docs/DECISIONS.md` when each is confirmed.
 | PL4 | code done, spike pending | PL4 commit | `apps/plugins/premiere-uxp`: manifest v5, PremiereAdapter (selection from active sequence D88, xmeml import apply D87, markers), engine host (engine.json, multicam://start), Spectrum primitives, build + .ccx scripts, 12 tests on a rule-enforcing mock DOM. Open: build on the Mac and run the spike checklist in the plugin README in Premiere 25.6/26.x |
 | PL5 | partly | PL4 commit | Native apply for `cuts` (1 transaction) and `stacked_enable` (place + disable) behind a beta switch. Open: confirm in Premiere, measure native vs XML, re-apply/versions, social clips, jump cuts |
 | PL6 | code done, spike pending | PL6 commit | `resolve-script` (Free+Studio, Python 3.6 stdlib: client, adapter, flow, UIManager window, installer; D90, D91) and `resolve-wi` (Studio, Electron, IPC bridge D92). 19 Python + 7 TS tests incl. full flows against a real engine. Open: spike checklist in Resolve 19/20 (endFrame, SetClipEnabled, timers) |
-| PL7 | not started | | |
+| PL7 | code done, FCP test pending | PL7 commit | `fcpxml_multicam` (D73) from the EditPlan; in the app's export panel and the plugin export (`method=multicam`); plugins request it for multicam XML applies; 6 structure/timing tests + API tests; `apps/plugins/fcp/README.md`. Open: import in Final Cut 11 on the Mac |
 | PL8 | not started | | |
 | PL9 | not started | | |
 | PL10 | not started | | |

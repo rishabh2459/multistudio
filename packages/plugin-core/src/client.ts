@@ -138,11 +138,13 @@ export class PluginClient {
 
   exportFile(
     id: string,
-    format: 'fcpxml' | 'xmeml' | 'edl',
+    format: 'fcpxml' | 'fcpxml_multicam' | 'xmeml' | 'edl',
     version?: number,
+    method?: PlanMethod,
   ): Promise<ExportFileOut> {
     const q = new URLSearchParams({ format });
     if (version) q.set('version', String(version));
+    if (method) q.set('method', method);
     return this.request('GET', `/sessions/${id}/export?${q.toString()}`);
   }
 

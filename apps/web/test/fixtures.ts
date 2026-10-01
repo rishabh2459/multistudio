@@ -15,6 +15,7 @@ export function makeClip(over: Partial<Clip> = {}): Clip {
     media: {
       fps: FPS,
       is_vfr: false,
+      has_video: true,
       duration_frames: 1800,
       width: 1920,
       height: 1080,

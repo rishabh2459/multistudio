@@ -131,10 +131,18 @@ class PluginClient:
         path = f"/sessions/{session_id}/editplan?{urllib.parse.urlencode(q)}"
         return self.request("GET", path)  # type: ignore[no-any-return]
 
-    def export(self, session_id: str, fmt: str = "fcpxml", version: Optional[int] = None) -> Json:
+    def export(
+        self,
+        session_id: str,
+        fmt: str = "fcpxml",
+        version: Optional[int] = None,
+        method: Optional[str] = None,
+    ) -> Json:
         q = {"format": fmt}
         if version:
             q["version"] = str(version)
+        if method:
+            q["method"] = method
         path = f"/sessions/{session_id}/export?{urllib.parse.urlencode(q)}"
         return self.request("GET", path)  # type: ignore[no-any-return]
 

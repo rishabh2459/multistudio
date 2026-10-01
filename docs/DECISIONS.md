@@ -81,6 +81,7 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | D90 | 2026-10-01 | Resolve script = launcher in `Fusion/Scripts/Edit` + package in `<data>/resolve-plugin/`; Python 3.6 syntax, stdlib only (checked by a test); long steps in a worker thread, a UIManager timer copies status to the window | Works in Resolve Free; engine updates can replace the package; the window never freezes |
 | D91 | 2026-10-01 | Resolve native apply = one `AppendToTimeline` call (absolute `recordFrame`, source frames at the clip's own rate, `endFrame` inclusive pending the spike) + `SetClipEnabled(False)` for stacked; FCPXML import for multicam/reframe/huge edits | One call is fast and atomic enough; FCPXML covers what the API cannot |
 | D92 | 2026-10-01 | Resolve WI plugin: adapter in Electron main, panel in the renderer, a whitelisted IPC bridge that carries `{code, message, hint}` errors and strips callbacks | Resolve objects cannot leave the main process; same panel as Premiere |
+| D73 | 2026-10-01 | Final Cut via FCPXML only (no Workflow Extension until there is demand); new export `fcpxml_multicam` written from the EditPlan: multicam clip (angle per camera / mic, leading gaps), one `mc-clip` per shot (video = live angle, audio = all audio angles), spine gaps for unrecorded frames, markers inside their shot | Zero install; Final Cut editors get native angle switches they can change |
 
 ## Dependencies added
 

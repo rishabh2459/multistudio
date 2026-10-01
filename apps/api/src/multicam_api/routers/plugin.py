@@ -85,6 +85,7 @@ from multicam_engine.editplan import (
     PlanMethod,
     build_edit_plan,
     plan_to_timeline,
+    to_fcpxml_multicam,
 )
 from multicam_engine.export import EXTENSIONS, NleFormat, write_nle
 from multicam_engine.layout import LayoutError, resolve_layout
@@ -106,6 +107,7 @@ CAPABILITIES = [
     "method:stacked_enable",
     "method:multicam",
     "export:fcpxml",
+    "export:fcpxml_multicam",
     "export:xmeml",
     "export:edl",
     "markers",
@@ -610,7 +612,12 @@ def get_editplan(
     return _plan(db, _session_or_404(db, session_id), host=host, version=version, method=method)
 
 
-_EXPORT_FORMATS = {"fcpxml": NleFormat.FCPXML, "xmeml": NleFormat.XMEML, "edl": NleFormat.EDL}
+_EXPORT_FORMATS = {
+    "fcpxml": NleFormat.FCPXML,
+    "fcpxml_multicam": NleFormat.FCPXML_MULTICAM,
+    "xmeml": NleFormat.XMEML,
+    "edl": NleFormat.EDL,
+}
 
 
 @router.get("/sessions/{session_id}/export", response_model=ExportFileOut)
@@ -620,8 +627,12 @@ def export_session(
     state: StateDep,
     format: str = "fcpxml",
     version: int | None = Query(default=None, ge=1),
+    method: PlanMethod | None = None,
 ) -> ExportFileOut:
-    """Write the plan as a file the host can import (Rule C fallback)."""
+    """Write the plan as a file the host can import (Rule C fallback).
+
+    ``fcpxml`` with method ``multicam`` (or ``fcpxml_multicam``) writes a multicam
+    clip with angle switches (Final Cut, Resolve)."""
     if format not in _EXPORT_FORMATS:
         raise PluginError(
             ErrorCode.NOT_AVAILABLE,
@@ -629,13 +640,21 @@ def export_session(
             f"use one of {sorted(_EXPORT_FORMATS)}",
         )
     row = _session_or_404(db, session_id)
-    plan = _plan(db, row, host=HostApp.GENERIC, version=version, method=None)
+    plan = _plan(db, row, host=HostApp.GENERIC, version=version, method=method)
     fmt = _EXPORT_FORMATS[format]
+    if fmt is NleFormat.FCPXML and plan.method is PlanMethod.MULTICAM:
+        fmt = NleFormat.FCPXML_MULTICAM
     project_id = UUID(row.project_id)
     stem = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in plan.sequence.name)
-    out = state.storage.exports_dir(project_id) / f"{stem}{EXTENSIONS[fmt]}"
+    suffix = "-multicam" if fmt is NleFormat.FCPXML_MULTICAM else ""
+    out = state.storage.exports_dir(project_id) / f"{stem}{suffix}{EXTENSIONS[fmt]}"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(write_nle(plan_to_timeline(plan), fmt), encoding="utf-8")
+    text = (
+        to_fcpxml_multicam(plan)
+        if fmt is NleFormat.FCPXML_MULTICAM
+        else write_nle(plan_to_timeline(plan), fmt)
+    )
+    out.write_text(text, encoding="utf-8")
     db.add(
         ExportRow(
             id=str(uuid4()),

@@ -279,7 +279,12 @@ export class AutoEditController {
       const viaXml = async (): Promise<ApplyResult> => {
         const fmt = this.caps!.xmlImport;
         if (!fmt) throw new PluginError('not_available', 'this host cannot import XML');
-        const file = await client.exportFile(this.needSession().id, fmt, plan.cutlist_version);
+        const file = await client.exportFile(
+          this.needSession().id,
+          fmt,
+          plan.cutlist_version,
+          decision.method,
+        );
         return this.adapter.importXml(file.path, plan);
       };
       if (decision.via === 'xml') {

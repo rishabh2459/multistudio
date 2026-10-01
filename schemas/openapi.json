@@ -1503,6 +1503,7 @@
       "NleFormat": {
         "enum": [
           "fcpxml",
+          "fcpxml_multicam",
           "xmeml",
           "edl"
         ],
@@ -5130,7 +5131,7 @@
     },
     "/api/plugin/v1/sessions/{session_id}/export": {
       "get": {
-        "description": "Write the plan as a file the host can import (Rule C fallback).",
+        "description": "Write the plan as a file the host can import (Rule C fallback).\n\n``fcpxml`` with method ``multicam`` (or ``fcpxml_multicam``) writes a multicam\nclip with angle switches (Final Cut, Resolve).",
         "operationId": "export_session_api_plugin_v1_sessions__session_id__export_get",
         "parameters": [
           {
@@ -5168,6 +5169,22 @@
                 }
               ],
               "title": "Version"
+            }
+          },
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PlanMethod"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Method"
             }
           }
         ],

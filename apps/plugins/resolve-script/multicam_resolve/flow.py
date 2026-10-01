@@ -80,14 +80,14 @@ class AutoEdit:
         if on_progress:
             on_progress(0.1, decision["reason"])
         if decision["via"] == "xml":
-            result = self._via_xml(plan)
+            result = self._via_xml(plan, decision["method"])
         else:
             try:
                 result = self.adapter.apply_plan(plan, decision["method"])
             except EngineError:
                 raise
             except Exception as exc:
-                result = self._via_xml(plan)
+                result = self._via_xml(plan, decision["method"])
                 result["warnings"].append(f"native apply failed ({exc}); imported FCPXML")
         if plan.get("markers") and not result["markers"]:
             result["markers"] = self.adapter.add_markers(result["timeline"], plan["markers"])
@@ -96,6 +96,8 @@ class AutoEdit:
             on_progress(1.0, "done")
         return result
 
-    def _via_xml(self, plan: Json) -> Json:
-        exp = self._client().export(self._session_id(), "fcpxml", plan.get("cutlist_version"))
+    def _via_xml(self, plan: Json, method: str) -> Json:
+        exp = self._client().export(
+            self._session_id(), "fcpxml", plan.get("cutlist_version"), method=method
+        )
         return self.adapter.import_xml(exp["path"], plan)

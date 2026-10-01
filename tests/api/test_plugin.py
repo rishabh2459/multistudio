@@ -163,6 +163,11 @@ def test_full_plugin_flow(api: TestClient, recording: Recording) -> None:
         assert exp.status_code == 200, exp.text
         path = Path(exp.json()["path"])
         assert path.is_file() and ET.parse(path).getroot().tag == check
+    multi = api.get(f"{P}/sessions/{sid}/export", params={"format": "fcpxml", "method": "multicam"})
+    assert multi.status_code == 200, multi.text
+    root = ET.parse(multi.json()["path"]).getroot()
+    assert root.find("resources/media/multicam") is not None
+    assert len(root.findall("library/event/project/sequence/spine/mc-clip")) == summary["cuts"] + 1
     edl = api.get(f"{P}/sessions/{sid}/export", params={"format": "edl"}).json()
     assert Path(edl["path"]).read_text().startswith("TITLE:")
     _error(api.get(f"{P}/sessions/{sid}/export", params={"format": "aaf"}), 422, "not_available")

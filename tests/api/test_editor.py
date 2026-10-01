@@ -57,7 +57,13 @@ def test_proxies(api: TestClient, edited: dict) -> None:  # type: ignore[type-ar
 
 def test_nle_exports(api: TestClient, edited: dict, tmp_path: Path) -> None:  # type: ignore[type-arg]
     pid = edited["pid"]
-    for fmt, ext in (("fcpxml", ".fcpxml"), ("xmeml", ".xml"), ("edl", ".edl")):
+    formats = (
+        ("fcpxml", ".fcpxml"),
+        ("fcpxml_multicam", "-multicam.fcpxml"),
+        ("xmeml", ".xml"),
+        ("edl", ".edl"),
+    )
+    for fmt, ext in formats:
         resp = api.post(f"/api/projects/{pid}/nle-exports", json={"format": fmt})
         assert resp.status_code == 201, resp.text
         out = resp.json()
@@ -65,12 +71,13 @@ def test_nle_exports(api: TestClient, edited: dict, tmp_path: Path) -> None:  # 
         assert export["kind"] == fmt and export["exists"] and export["path"].endswith(f"-v1{ext}")
         text = Path(export["path"]).read_text()
         if fmt != "edl":
-            ET.fromstring(text.split("\n", 2)[2])  # well-formed XML
+            root = ET.fromstring(text.split("\n", 2)[2])  # well-formed XML
+            assert (root.find("resources/media/multicam") is not None) == (fmt == "fcpxml_multicam")
         else:
             assert text.startswith("TITLE: Episode 9\nFCM: DROP FRAME")
         assert api.get(f"/api/exports/{export['id']}/file").status_code == 200
     kinds = {e["kind"] for e in api.get(f"/api/projects/{pid}/exports").json()}
-    assert kinds == {"fcpxml", "xmeml", "edl"}
+    assert kinds == {"fcpxml", "fcpxml_multicam", "xmeml", "edl"}
 
     custom = tmp_path / "for-resolve.fcpxml"
     resp = api.post(
