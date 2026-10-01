@@ -787,8 +787,8 @@ Add these to `docs/DECISIONS.md` when each is confirmed.
 | PL1 | done (engine) | PL1 commit | Layouts + cover-set switching (D74, D78), variety / wide frequency (D80), onset snap + confidence (D81), PUNCHY + user presets (D83), 10 cams, multi-channel mics, parallel decode (D84), muddy-mic warning (D82). T1 plan ≈ 22 s. Accuracy vs AutoPod waits on PL0 labels |
 | PL2 | done | PL2 commit | `editplan/` (D69), exporters from the plan + markers + sound-only mics, `/api/plugin/v1` (D76, 8 endpoints, stable errors), already-synced path, `engine.json` discovery + lock + idle exit (D75), shutdown + desktop takeover + `multicam://` (D86), `scripts/plugin_demo.py`. Open: open the FCPXML in Resolve/FCP on the Mac |
 | PL3 | done | PL3 commit | `packages/plugin-core`: client, engine discovery/start, SSE + polling, `AutoEditController` state machine, apply decision + placements, setup guesses, React panel with injectable primitives, `FakeHost`; 24 tests incl. the full flow against a real headless engine. Open: setup auto-fill from face count (needs a face-count endpoint) |
-| PL4 | not started | | |
-| PL5 | not started | | |
+| PL4 | code done, spike pending | PL4 commit | `apps/plugins/premiere-uxp`: manifest v5, PremiereAdapter (selection from active sequence D88, xmeml import apply D87, markers), engine host (engine.json, multicam://start), Spectrum primitives, build + .ccx scripts, 12 tests on a rule-enforcing mock DOM. Open: build on the Mac and run the spike checklist in the plugin README in Premiere 25.6/26.x |
+| PL5 | partly | PL4 commit | Native apply for `cuts` (1 transaction) and `stacked_enable` (place + disable) behind a beta switch. Open: confirm in Premiere, measure native vs XML, re-apply/versions, social clips, jump cuts |
 | PL6 | not started | | |
 | PL7 | not started | | |
 | PL8 | not started | | |

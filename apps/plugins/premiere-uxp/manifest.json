@@ -1,0 +1,47 @@
+{
+  "manifestVersion": 5,
+  "id": "com.multicamstudio.premiere",
+  "name": "Multicam Studio",
+  "version": "0.1.0",
+  "main": "index.html",
+  "host": [{ "app": "premierepro", "minVersion": "25.6.0" }],
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "multicamPanel",
+      "label": { "default": "Multicam Studio" },
+      "minimumSize": { "width": 260, "height": 300 },
+      "maximumSize": { "width": 2000, "height": 2000 },
+      "preferredDockedSize": { "width": 320, "height": 560 },
+      "preferredFloatingSize": { "width": 320, "height": 560 },
+      "icons": [
+        {
+          "width": 23,
+          "height": 23,
+          "path": "icons/panel.png",
+          "scale": [1, 2],
+          "theme": ["all"],
+          "species": ["chrome"]
+        }
+      ]
+    }
+  ],
+  "requiredPermissions": {
+    "network": {
+      "domains": ["http://127.0.0.1:47811", "http://localhost:47811", "all"]
+    },
+    "localFileSystem": "fullAccess",
+    "launchProcess": { "schemes": ["multicam"], "extensions": [] },
+    "clipboard": "readAndWrite"
+  },
+  "icons": [
+    {
+      "width": 48,
+      "height": 48,
+      "path": "icons/plugin.png",
+      "scale": [1, 2],
+      "theme": ["all"],
+      "species": ["pluginList"]
+    }
+  ]
+}

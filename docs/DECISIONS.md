@@ -75,6 +75,9 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | D77 | 2026-10-01 | Default apply method `stacked_enable` (stored per session, overridable per request) | Most robust across hosts, easy to adjust by hand |
 | D85 | 2026-10-01 | Sound-only files are clips with role `mic` (`MediaInfo.has_video = false`, 100 fps "frames", 0×0): never cameras, only audio tracks; a sound-only reference makes the output follow the first camera | Separate recorders / Zoom H6 tracks from the NLE come in as they are |
 | D86 | 2026-10-01 | The desktop app runs its engine with `--discovery`; if a headless engine owns the folder, the app asks it to stop (`POST /api/system/shutdown`, token-only, refused while jobs run) and starts its own. `multicam://start` with the app closed spawns a detached headless engine and quits | Exactly one engine per data folder; plugins and app always share it |
+| D87 | 2026-10-01 | Premiere panel applies by **xmeml import** by default (`maxNativeEvents = 0`); native SequenceEditor apply (`cuts` 1 transaction, `stacked_enable` place + disable) ships behind a beta switch until the PL4 spike confirms the UXP DOM | XML import is one undo step and needs no unverified API; native code is ready and mock-tested for PL5 |
+| D88 | 2026-10-01 | Premiere selection = the active sequence: video tracks are cameras, audio-only files on audio tracks are mics, the first item per file gives its position; clips all at frame 0 with no trim count as *not* synced (engine runs audio sync) | Works for synced multicam timelines and for clips just dropped in |
+| D89 | 2026-10-01 | Shared panel UI takes injectable primitives; Premiere passes UXP Spectrum widgets (`sp-*`, events wired with listeners) | One set of React views for UXP and Electron |
 
 ## Dependencies added
 
