@@ -6,7 +6,13 @@ from enum import StrEnum
 
 from multicam_engine.export.edl import to_edl
 from multicam_engine.export.fcpxml import to_fcpxml
-from multicam_engine.export.timeline import Event, NleTimeline, Source, build_nle_timeline
+from multicam_engine.export.timeline import (
+    Event,
+    Marker,
+    NleTimeline,
+    Source,
+    build_nle_timeline,
+)
 from multicam_engine.export.xmeml import to_xmeml
 
 
@@ -30,6 +36,7 @@ def write_nle(timeline: NleTimeline, fmt: NleFormat) -> str:
 __all__ = [
     "EXTENSIONS",
     "Event",
+    "Marker",
     "NleFormat",
     "NleTimeline",
     "Source",

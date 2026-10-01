@@ -4,7 +4,15 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { RestartPolicy, Sidecar, SidecarError, parseReadyLine, type SidecarInfo } from './sidecar';
+import {
+  EngineAlreadyRunningError,
+  RestartPolicy,
+  Sidecar,
+  SidecarError,
+  parseReadyLine,
+  parseRunningLine,
+  type SidecarInfo,
+} from './sidecar';
 
 describe('parseReadyLine', () => {
   it('reads the port from the ready line only', () => {
@@ -13,6 +21,13 @@ describe('parseReadyLine', () => {
     expect(parseReadyLine('INFO: MULTICAM_API_READY port=1')).toBeNull();
     expect(parseReadyLine('MULTICAM_API_READY port=0')).toBeNull();
     expect(parseReadyLine('MULTICAM_API_READY port=70000')).toBeNull();
+  });
+});
+
+describe('parseRunningLine', () => {
+  it('reads the port of an engine that already runs', () => {
+    expect(parseRunningLine('MULTICAM_API_RUNNING port=47811')).toBe(47811);
+    expect(parseRunningLine('MULTICAM_API_READY port=47811')).toBeNull();
   });
 });
 
@@ -34,11 +49,12 @@ const FAKE = `
 const http = require('node:http');
 const args = process.argv.slice(2);
 const port = Number(args[args.indexOf('--port') + 1]);
+if (process.env.FAKE_MODE === 'already-running') { console.log('MULTICAM_API_RUNNING port=47811'); process.exit(0); }
 if (process.env.FAKE_MODE === 'die-early') { console.error('boom: missing library'); process.exit(3); }
 const server = http.createServer((req, res) => {
   if (req.url === '/api/system/health') { res.end('{"status":"ok"}'); return; }
   if (req.url === '/crash') { res.end('bye'); setTimeout(() => process.exit(9), 10); return; }
-  if (req.url === '/env') { res.end(JSON.stringify({ token: process.env.MULTICAM_API_TOKEN, cors: process.env.MULTICAM_CORS, watch: args.includes('--watch-stdin') })); return; }
+  if (req.url === '/env') { res.end(JSON.stringify({ token: process.env.MULTICAM_API_TOKEN, cors: process.env.MULTICAM_CORS, watch: args.includes('--watch-stdin'), discovery: args.includes('--discovery') })); return; }
   res.statusCode = 404; res.end();
 });
 server.listen(port, '127.0.0.1', () => console.log('MULTICAM_API_READY port=' + server.address().port));
@@ -65,6 +81,7 @@ function makeSidecar(env: Record<string, string> = {}, policy?: RestartPolicy) {
     readyTimeoutMs: 10_000,
     policy: policy ?? new RestartPolicy(3, 60_000, [50, 50, 50]),
     log: (source, line) => lines.push(`${source}: ${line}`),
+    extraArgs: ['--discovery'],
   });
   running.push(sidecar);
   return { sidecar, lines };
@@ -76,7 +93,12 @@ describe('Sidecar', () => {
     const info = await sidecar.start();
     expect(sidecar.status).toBe('ready');
     const env = await (await fetch(`${info.baseUrl}/env`)).json();
-    expect(env).toEqual({ token: 'secret-token', cors: 'app://multicam', watch: true });
+    expect(env).toEqual({
+      token: 'secret-token',
+      cors: 'app://multicam',
+      watch: true,
+      discovery: true,
+    });
     await sidecar.stop();
     expect(sidecar.status).toBe('stopped');
     expect(lines).toContain('stdout: stdin closed'); // clean shutdown, not a kill
@@ -90,6 +112,13 @@ describe('Sidecar', () => {
     expect((err as SidecarError).message).toMatch(/stopped during startup \(exit code 3\)/);
     expect((err as SidecarError).output).toContain('boom: missing library');
     expect(sidecar.status).toBe('failed');
+  });
+
+  it('reports an engine that already owns the data folder', async () => {
+    const { sidecar } = makeSidecar({ FAKE_MODE: 'already-running' });
+    const err = await sidecar.start().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EngineAlreadyRunningError);
+    expect((err as EngineAlreadyRunningError).port).toBe(47811);
   });
 
   it('reports a missing executable', async () => {

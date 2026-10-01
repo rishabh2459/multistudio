@@ -56,6 +56,12 @@ def to_xmeml(tl: NleTimeline) -> str:
     _sub(seq, "duration", tl.duration_frames)
     _rate(seq, tl.fps)
     _timecode(seq, tl.fps, 0)
+    for marker in tl.markers:
+        m = _sub(seq, "marker")
+        _sub(m, "name", marker.note[:60])
+        _sub(m, "comment", marker.note)
+        _sub(m, "in", marker.frame)
+        _sub(m, "out", -1)
     media = _sub(seq, "media")
 
     written: set[UUID] = set()
@@ -74,7 +80,8 @@ def to_xmeml(tl: NleTimeline) -> str:
         _sub(f, "duration", to_frames(src.duration, src.fps))
         _timecode(f, src.fps, src.start_tc_frames)
         fm = _sub(f, "media")
-        _video_characteristics(_sub(fm, "video"), src.fps, src.width, src.height)
+        if src.has_video:
+            _video_characteristics(_sub(fm, "video"), src.fps, src.width, src.height)
         if src.has_audio:
             audio = _sub(fm, "audio")
             asc = _sub(audio, "samplecharacteristics")

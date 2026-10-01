@@ -13,15 +13,19 @@ from contextlib import asynccontextmanager
 from uuid import UUID
 
 from fastapi import FastAPI, Request, Response
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, update
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from multicam_api import __version__
 from multicam_api.config import Settings
 from multicam_api.db.migrate import upgrade
 from multicam_api.db.models import JobRow, utc_now
 from multicam_api.db.session import Database
+from multicam_api.discovery import Activity
 from multicam_api.infra.queue import HueyJobQueue, JobQueue
 from multicam_api.infra.storage import LocalStorage
 from multicam_api.jobs.runner import JobRunner
@@ -31,6 +35,7 @@ from multicam_api.routers import (
     editor,
     exports,
     jobs,
+    plugin,
     presets,
     projects,
     system,
@@ -42,6 +47,24 @@ log = logging.getLogger(__name__)
 
 TOKEN_HEADER = "X-Multicam-Token"
 OPEN_PATHS = ("/api/system/health",)
+PLUGIN_ORIGINS = r"^(null|file://.*|app://.*)$"
+
+
+class ActivityMiddleware:
+    """Pure ASGI (not ``@app.middleware``) so a streaming response counts until it ends."""
+
+    def __init__(self, app: ASGIApp, activity: Activity) -> None:
+        self.app, self.activity = app, activity
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        self.activity.begin()
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            self.activity.end()
 
 
 def recover_jobs(db: Database, queue: JobQueue) -> int:
@@ -121,10 +144,34 @@ def create_app(settings: Settings | None = None, queue: JobQueue | None = None) 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
+        # NLE plugin panels load from file:// (Resolve Workflow Integration, Electron)
+        # and send "null" or a file/app origin. Every call still needs the token.
+        allow_origin_regex=PLUGIN_ORIGINS,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    for module in (system, projects, clips, cutlists, jobs, exports, editor, presets):
+    # Outermost of all: every request (incl. long SSE streams) counts as activity
+    # for a headless engine's idle exit.
+    app.state.activity = Activity()
+    app.add_middleware(ActivityMiddleware, activity=app.state.activity)
+
+    for module in (system, projects, clips, cutlists, jobs, exports, editor, presets, plugin):
         app.include_router(module.router)
+
+    @app.exception_handler(plugin.PluginError)
+    async def plugin_error(request: Request, exc: plugin.PluginError) -> JSONResponse:
+        body = {"code": exc.code.value, "message": exc.message, "hint": exc.hint}
+        return JSONResponse(body, status_code=exc.status_code)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request: Request, exc: RequestValidationError) -> Response:
+        if not request.url.path.startswith(plugin.router.prefix):
+            return await request_validation_exception_handler(request, exc)
+        first = exc.errors()[0] if exc.errors() else {}
+        where = ".".join(str(p) for p in first.get("loc", ()) if p != "body")
+        message = f"{where}: {first.get('msg', 'invalid request')}" if where else "invalid request"
+        body = {"code": "invalid_request", "message": message, "hint": ""}
+        return JSONResponse(body, status_code=422)
+
     return app

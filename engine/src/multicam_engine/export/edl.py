@@ -18,6 +18,9 @@ def to_edl(tl: NleTimeline) -> str:
     reels = dict(zip(tl.sources, reel_names([s.name for s in tl.sources.values()]), strict=True))
     title = "".join(ch for ch in tl.name if ch.isprintable())[:70] or "Multicam Studio"
     lines = [f"TITLE: {title}", f"FCM: {'DROP FRAME' if rate.drop else 'NON-DROP FRAME'}", ""]
+    locators: dict[int, list[str]] = {}
+    for marker in tl.markers:
+        locators.setdefault(marker.frame, []).append(marker.note)
     for number, ev in enumerate(tl.video, start=1):
         src = tl.sources[ev.clip_id]
         # Source timecode in timeline-rate frames (EDLs have a single rate).
@@ -26,5 +29,10 @@ def to_edl(tl: NleTimeline) -> str:
         times = " ".join(frames_to_timecode(f, rate) for f in (src_in, src_out, ev.start, ev.end))
         lines.append(f"{number:03d}  {reels[ev.clip_id]:<8} V     C        {times}")
         lines.append(f"* FROM CLIP NAME: {src.name}")
+        for frame in sorted(f for f in locators if ev.start <= f < ev.end):
+            for note in locators[frame]:
+                tc = frames_to_timecode(frame, rate)
+                text = "".join(ch for ch in note if ch.isprintable())
+                lines.append(f"* LOC: {tc} YELLOW  {text}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"

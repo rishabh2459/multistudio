@@ -785,7 +785,7 @@ Add these to `docs/DECISIONS.md` when each is confirmed.
 |---|---|---|---|
 | PL0 | partly done | Phase 8 commit, PL0 commit | Phase 8 committed; `scripts/bench_pipeline.py`; T1 baseline in `docs/BENCHMARKS.md`; sync-confidence fix (D79). Open: T1 labels, human/AutoPod comparison set, more recordings, Mac/Windows timings |
 | PL1 | done (engine) | PL1 commit | Layouts + cover-set switching (D74, D78), variety / wide frequency (D80), onset snap + confidence (D81), PUNCHY + user presets (D83), 10 cams, multi-channel mics, parallel decode (D84), muddy-mic warning (D82). T1 plan ≈ 22 s. Accuracy vs AutoPod waits on PL0 labels |
-| PL2 | not started | | |
+| PL2 | done | PL2 commit | `editplan/` (D69), exporters from the plan + markers + sound-only mics, `/api/plugin/v1` (D76, 8 endpoints, stable errors), already-synced path, `engine.json` discovery + lock + idle exit (D75), shutdown + desktop takeover + `multicam://` (D86), `scripts/plugin_demo.py`. Open: open the FCPXML in Resolve/FCP on the Mac |
 | PL3 | not started | | |
 | PL4 | not started | | |
 | PL5 | not started | | |

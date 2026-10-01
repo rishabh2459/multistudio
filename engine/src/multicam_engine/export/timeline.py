@@ -45,6 +45,7 @@ class Source:
     #: Start timecode in frames at the file's rate (0 if none embedded).
     start_tc_frames: int
     has_timecode: bool
+    has_video: bool = True
 
     @property
     def start_seconds(self) -> Fraction:
@@ -66,6 +67,15 @@ class Event:
         return self.end - self.start
 
 
+@dataclass(frozen=True)
+class Marker:
+    """A note at a timeline frame (e.g. "check this cut")."""
+
+    frame: int
+    note: str
+    color: str = "yellow"  # red | yellow | green | blue
+
+
 @dataclass
 class NleTimeline:
     name: str
@@ -77,12 +87,13 @@ class NleTimeline:
     video: list[Event]
     audio: dict[UUID, list[Event]]  # one track per camera, in source order
     warnings: list[str] = field(default_factory=list)
+    markers: list[Marker] = field(default_factory=list)
 
     def source_out(self, event: Event) -> Fraction:
         return event.source_in + Fraction(event.frames) / self.fps
 
 
-class _Mapper:
+class ClipMapper:
     """Timeline frame -> media time for one clip (seconds since its first frame)."""
 
     def __init__(self, timing: ClipTiming, probe: ProbeResult, fps: Fraction) -> None:
@@ -97,7 +108,7 @@ class _Mapper:
         return self.timing.pts_at(Fraction(frame) / self.fps) - self.zero
 
 
-def _source(project: Project, clip_id: UUID, probe: ProbeResult) -> Source:
+def make_source(project: Project, clip_id: UUID, probe: ProbeResult) -> Source:
     clip = project.clip(clip_id)
     media = probe.media
     fps = media.fps.to_fraction()
@@ -122,6 +133,7 @@ def _source(project: Project, clip_id: UUID, probe: ProbeResult) -> Source:
         sample_rate=media.audio_sample_rate or 48000,
         start_tc_frames=tc_frames,
         has_timecode=has_tc,
+        has_video=media.has_video,
     )
 
 
@@ -141,7 +153,7 @@ def _audio_clip_ids(
 
 
 def _audio_events(
-    clip_id: UUID, mapper: _Mapper, probe: ProbeResult, cuts: list[int], fps: Fraction
+    clip_id: UUID, mapper: ClipMapper, probe: ProbeResult, cuts: list[int], fps: Fraction
 ) -> list[Event]:
     timing = mapper.timing
     audio_start = probe.audio_start if probe.audio_start is not None else probe.video_start
@@ -186,9 +198,10 @@ def build_nle_timeline(
     if missing:
         raise ValueError(f"clips not probed: {', '.join(missing)}")
 
-    sources = {cid: _source(project, cid, probes[cid]) for cid in sorted(used, key=str)}
+    sources = {cid: make_source(project, cid, probes[cid]) for cid in sorted(used, key=str)}
     mappers = {
-        cid: _Mapper(clip_timing(project.clip(cid), probes[cid]), probes[cid], fps) for cid in used
+        cid: ClipMapper(clip_timing(project.clip(cid), probes[cid]), probes[cid], fps)
+        for cid in used
     }
     warnings: list[str] = []
 

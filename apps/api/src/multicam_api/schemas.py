@@ -192,6 +192,9 @@ class AutoParams(ApiModel):
     vad: Literal["auto", "silero", "energy"] = "auto"
     preset: Preset | None = None
     switch: SwitchSettings | None = None
+    sync: bool = Field(
+        default=True, description="False: keep the clips' sync (already synced in an NLE)"
+    )
     framing: bool = Field(default=False, description="Also run auto framing (faces, punch-ins)")
 
 

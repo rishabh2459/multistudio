@@ -85,6 +85,23 @@ def test_missing_audio_is_allowed() -> None:
     assert r.media.audio_channels == 0
 
 
+def test_no_streams_at_all() -> None:
+    data = _data()
+    data["streams"] = []
+    with pytest.raises(ProbeError, match="no video or audio stream"):
+        parse_probe(data, PATH)
+
+
+def test_sound_only_file() -> None:
+    data = _data()
+    data["streams"] = data["streams"][1:]
+    r = parse_probe(data, PATH)
+    assert r.video_stream_index is None and r.audio_stream_index == 1
+    assert not r.media.has_video and r.media.width == 0
+    assert r.media.fps.num == 100 and r.media.duration_frames == 6010  # 60.1 s
+    assert r.video_start == r.audio_start == Fraction("0.021333")
+
+
 def test_duration_falls_back_to_container() -> None:
     assert parse_probe(_data(duration="N/A"), PATH).duration == Fraction("60.1")
 
@@ -92,7 +109,6 @@ def test_duration_falls_back_to_container() -> None:
 @pytest.mark.parametrize(
     ("change", "message"),
     [
-        ({"codec_type": "audio"}, "no video stream"),
         ({"width": 0}, "dimensions"),
         ({"r_frame_rate": "0/0", "avg_frame_rate": "0/0"}, "frame rate"),
     ],

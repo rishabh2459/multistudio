@@ -344,8 +344,16 @@ def decide(ctx: JobContext, params: DecideParams) -> Result:
 # ------------------------------------------------------------------ auto
 def run_auto(ctx: JobContext) -> Result:
     params = AutoParams.model_validate(ctx.params)
-    ctx.span(0.0, 0.45)
-    synced = run_sync(ctx)
+    if params.sync:
+        ctx.span(0.0, 0.45)
+        synced = run_sync(ctx)
+    else:
+        check_files(ctx)
+        with ctx.db.session() as s:
+            unsynced = [Path(c.path).name for c in _project(s, ctx).clips if c.sync is None]
+        if unsynced:
+            raise JobFailedError(f"not synced yet: {', '.join(unsynced)}")
+        synced = {"skipped": True, "cached": True}
     ctx.span(0.45, 0.9)
     analyzed = analyze(ctx, AnalyzeParams(vad=params.vad))
     ctx.span(0.9, 0.93 if params.framing else 1.0)

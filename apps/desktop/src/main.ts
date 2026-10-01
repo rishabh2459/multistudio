@@ -23,9 +23,20 @@ import {
 
 import { CHANNELS, VIDEO_EXTENSIONS, type BridgeConfig } from './channels';
 import { buildDiagnosticReport } from './diagnostics';
+import {
+  URL_SCHEME,
+  defaultDataDir,
+  findUrlInArgv,
+  parseMulticamUrl,
+  pidAlive,
+  readEngineFile,
+  spawnHeadlessEngine,
+  takeOverEngine,
+  type MulticamUrl,
+} from './engine-link';
 import { resolveLayout, type Layout } from './layout';
 import { LogFile, tailFile } from './logs';
-import { Sidecar, SidecarError } from './sidecar';
+import { EngineAlreadyRunningError, Sidecar, SidecarError } from './sidecar';
 import { splashUrl } from './splash';
 import {
   APP_HOST,
@@ -67,10 +78,15 @@ const apiLog = new LogFile(path.join(logsDir, 'engine.log'));
 const token = randomBytes(24).toString('base64url');
 const uiOrigin = layout.webUrl ? new URL(layout.webUrl).origin : APP_ORIGIN;
 
+// The engine's data folder (same rule as the engine) - where engine.json lives.
+const dataDir = defaultDataDir(process.platform, process.env, os.homedir());
+
 const sidecar = new Sidecar({
   backend: layout.backend,
   token,
   uiOrigin,
+  // Write engine.json so the NLE plugins (Premiere, Resolve) use this engine too.
+  extraArgs: ['--discovery'],
   log: (source, line) =>
     source === 'sidecar' ? mainLog.write('engine', line) : apiLog.write(source, line),
 });
@@ -315,11 +331,30 @@ function createWindow(): BrowserWindow {
 
 async function startEngine(): Promise<void> {
   try {
-    const info = await sidecar.start();
+    const info = await startOwnEngine();
     log(`engine ready at ${info.baseUrl}`);
     await mainWindow?.loadURL(uiUrl());
   } catch (err) {
     await engineFailed(err as Error);
+  }
+}
+
+/**
+ * Start the app's engine. If a headless engine (started by an NLE plugin) owns the
+ * data folder, ask it to stop first - waiting while it finishes running jobs.
+ */
+async function startOwnEngine(): ReturnType<Sidecar['start']> {
+  const deadline = Date.now() + 10 * 60_000;
+  for (;;) {
+    try {
+      return await sidecar.start();
+    } catch (err) {
+      if (!(err instanceof EngineAlreadyRunningError)) throw err;
+      const result = await takeOverEngine(dataDir);
+      log(`a headless engine is running (port ${err.port}): take over -> ${result}`);
+      if (result === 'failed' || Date.now() > deadline) throw err;
+      if (result === 'busy') await new Promise((resolve) => setTimeout(resolve, 3_000));
+    }
   }
 }
 
@@ -355,18 +390,70 @@ sidecar.on('restarted', ({ info, portChanged }) => {
 });
 sidecar.on('failed', (err) => void engineFailed(err));
 
+// ------------------------------------------------------------------ multicam:// links
+// NLE plugins open multicam://start ("Start engine") and multicam://open?session=<id>.
+if (app.isPackaged) {
+  app.setAsDefaultProtocolClient(URL_SCHEME);
+} else if (process.defaultApp && process.argv[1]) {
+  app.setAsDefaultProtocolClient(URL_SCHEME, process.execPath, [path.resolve(process.argv[1])]);
+}
+
+/** The link the app was launched with (Windows / Linux: argv; macOS: open-url). */
+let launchUrl: MulticamUrl | null = findUrlInArgv(process.argv);
+
+function focusWindow(): void {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+}
+
+function handleUrl(url: MulticamUrl): void {
+  log(`link: ${JSON.stringify(url)}`);
+  // The app's engine already serves plugins; restart it if it had failed.
+  if (sidecar.status === 'failed' || sidecar.status === 'stopped') void startEngine();
+  if (url.action === 'open') focusWindow();
+}
+
+app.on('open-url', (event, raw) => {
+  event.preventDefault();
+  const url = parseMulticamUrl(raw);
+  if (!url) return;
+  if (app.isReady() && mainWindow) handleUrl(url);
+  else launchUrl = url;
+});
+
+/**
+ * Launched only to start the engine for a plugin (app was closed): run the engine
+ * headless (it exits by itself when idle) and quit without opening a window.
+ */
+function startHeadlessAndQuit(): void {
+  const running = readEngineFile(dataDir);
+  if (running && pidAlive(running.pid)) {
+    log(`multicam://start: engine already running (pid ${running.pid})`);
+  } else {
+    const pid = spawnHeadlessEngine(layout.backend);
+    log(`multicam://start: headless engine started (pid ${pid ?? '?'})`);
+  }
+  mainLog.close();
+  apiLog.close();
+  app.exit(0);
+}
+
 // ------------------------------------------------------------------ lifecycle
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
+  app.on('second-instance', (_event, argv) => {
+    const url = findUrlInArgv(argv);
+    if (url) handleUrl(url);
+    else focusWindow();
   });
 
   app.whenReady().then(async () => {
+    if (launchUrl?.action === 'start') {
+      startHeadlessAndQuit();
+      return;
+    }
     log(`Multicam Studio ${app.getVersion()} starting (packaged: ${app.isPackaged})`);
     log(`ui: ${layout.webUrl ?? layout.webRoot}; engine: ${layout.backend.command}`);
     serveStaticUi();

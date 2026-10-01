@@ -175,3 +175,27 @@ class UserPresetRow(Base):
     name: Mapped[str] = mapped_column(String(60), unique=True)
     settings: Mapped[dict[str, Any]]
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
+
+
+class PluginSessionRow(Base):
+    """An NLE plugin's view of a project (Plugin API v1): which host sequence it came
+    from and the host's own ids for each clip, so re-runs reuse the analysis."""
+
+    __tablename__ = "plugin_sessions"
+    __table_args__ = (UniqueConstraint("host_app", "host_sequence_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    host_app: Mapped[str] = mapped_column(String(20))
+    host_version: Mapped[str] = mapped_column(String(40), default="")
+    host_os: Mapped[str] = mapped_column(String(20), default="")
+    host_sequence_id: Mapped[str | None] = mapped_column(String(200))
+    already_synced: Mapped[bool] = mapped_column(Boolean, default=False)
+    method: Mapped[str] = mapped_column(String(20), default="stacked_enable")
+    #: {clip_id: {"host_ref": str | None, "track": int | None}}
+    clip_refs: Mapped[dict[str, Any]]
+    host_start_frame: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)

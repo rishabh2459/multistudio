@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from pydantic.json_schema import models_json_schema
 
 from multicam_engine.benchmark.ground_truth import GroundTruth
+from multicam_engine.editplan.model import EditPlan
 from multicam_engine.models.cutlist import CutList
 from multicam_engine.models.project import Project
 
@@ -17,6 +18,7 @@ EXPORTED_MODELS: dict[str, type[BaseModel]] = {
     "Project": Project,
     "CutList": CutList,
     "GroundTruth": GroundTruth,
+    "EditPlan": EditPlan,  # what the NLE plugins apply (PL2)
 }
 
 _NESTED_SCHEMA_KEYS = ("items", "additionalProperties", "not", "contains", "propertyNames")

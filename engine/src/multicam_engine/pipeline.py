@@ -87,6 +87,8 @@ def build_project(
         clips.append(clip)
     if reference_id is None or ref_media is None:
         raise ValueError("sync report has no reference clip")
+    if not ref_media.has_video:  # sound-only reference: output follows the first camera
+        ref_media = next((c.media for c in clips if c.media and c.media.has_video), ref_media)
     for clip, entry in zip(clips, report.clips, strict=True):
         clip.sync = entry.to_sync_result(reference_id)
     return Project(
@@ -170,15 +172,19 @@ class Analysis:
 
 
 def _timeline_frames(project: Project) -> tuple[int, int]:
-    """(output frames, analysis frames) of the reference clip."""
+    """(output frames, analysis frames) covering the reference clip."""
     if project.reference_clip_id is None:
         raise ValueError("project has no reference clip (run sync first)")
     ref = project.clip(project.reference_clip_id)
     if ref.media is None:
         raise ValueError("reference clip has no media info (probe it first)")
-    duration_frames = ref.media.duration_frames
-    fps = project.output.fps
-    return duration_frames, int(np.ceil(duration_frames * FEATURE_RATE * fps.den / fps.num))
+    src, out = ref.media.fps, project.output.fps
+    # The reference may run at another rate than the output (custom output
+    # settings, or a sound-only reference): convert through exact seconds.
+    duration_frames = max(
+        1, -(-ref.media.duration_frames * src.den * out.num // (src.num * out.den))
+    )
+    return duration_frames, int(np.ceil(duration_frames * FEATURE_RATE * out.den / out.num))
 
 
 def analyze_project(

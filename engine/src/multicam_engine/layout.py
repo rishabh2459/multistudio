@@ -14,6 +14,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from multicam_engine.models.project import (
     CameraLayout,
+    Clip,
     ClipRole,
     Project,
     ShotType,
@@ -65,11 +66,13 @@ def role_layout(project: Project) -> tuple[list[Speaker], list[CameraLayout]]:
             mic_clip_id=c.id,
         )
         for c in project.clips
-        if c.role is ClipRole.SPEAKER
+        if c.role is ClipRole.SPEAKER and _has_video(c)
     ]
     everyone = [s.id for s in speakers]
     cameras: list[CameraLayout] = []
     for c in project.clips:
+        if c.role is ClipRole.MIC or not _has_video(c):
+            continue  # sound only: never a camera
         if c.role is ClipRole.SPEAKER:
             cameras.append(
                 CameraLayout(clip_id=c.id, shot=ShotType.SOLO, covers=[derived_speaker_id(c.id)])
@@ -91,7 +94,12 @@ def resolve_layout(project: Project) -> ResolvedLayout:
         all_cameras = [
             by_clip.get(c.id, CameraLayout(clip_id=c.id, shot=ShotType.BROLL, covers=[]))
             for c in project.clips
+            if _has_video(c) and (c.role is not ClipRole.MIC or c.id in by_clip)
         ]
+        for cam in all_cameras:
+            clip = project.clip(cam.clip_id)
+            if cam.shot is not ShotType.BROLL and clip.role is ClipRole.MIC:
+                raise LayoutError(f"{_stem(clip.path)} is marked as a mic; it cannot be a camera")
     else:
         speakers, all_cameras = role_layout(project)
     cameras = [c for c in all_cameras if c.shot is not ShotType.BROLL]
@@ -100,6 +108,10 @@ def resolve_layout(project: Project) -> ResolvedLayout:
     if not cameras:
         raise LayoutError("project has no cameras to switch between (all clips are B-roll)")
     return ResolvedLayout(speakers, cameras, all_cameras, custom)
+
+
+def _has_video(clip: Clip) -> bool:
+    return clip.media is None or clip.media.has_video
 
 
 def _stem(path: str) -> str:

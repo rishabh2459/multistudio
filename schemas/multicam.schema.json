@@ -45,6 +45,37 @@
       "title": "AudioMode",
       "type": "string"
     },
+    "AudioTrack": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "gain_db": {
+          "default": 0.0,
+          "type": "number"
+        },
+        "index": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pieces": {
+          "items": {
+            "$ref": "#/$defs/PlanPiece"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "index",
+        "clip_id",
+        "gain_db",
+        "pieces"
+      ],
+      "title": "AudioTrack",
+      "type": "object"
+    },
     "CameraLayout": {
       "additionalProperties": false,
       "description": "One camera (clip), what kind of shot it is and who is visible in it.",
@@ -146,7 +177,8 @@
       "enum": [
         "speaker",
         "wide",
-        "broll"
+        "broll",
+        "mic"
       ],
       "title": "ClipRole",
       "type": "string"
@@ -199,6 +231,99 @@
         "audio"
       ],
       "title": "CutList",
+      "type": "object"
+    },
+    "EditPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_mode": {
+          "$ref": "#/$defs/AudioMode",
+          "default": "mix"
+        },
+        "audio_tracks": {
+          "items": {
+            "$ref": "#/$defs/AudioTrack"
+          },
+          "type": "array"
+        },
+        "cutlist_version": {
+          "type": "integer"
+        },
+        "host": {
+          "$ref": "#/$defs/HostApp",
+          "default": "generic"
+        },
+        "markers": {
+          "items": {
+            "$ref": "#/$defs/PlanMarker"
+          },
+          "type": "array"
+        },
+        "media": {
+          "items": {
+            "$ref": "#/$defs/PlanMedia"
+          },
+          "type": "array"
+        },
+        "method": {
+          "$ref": "#/$defs/PlanMethod",
+          "default": "stacked_enable"
+        },
+        "plan_version": {
+          "const": 1,
+          "default": 1,
+          "type": "integer"
+        },
+        "project_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "removals": {
+          "description": "Approved only",
+          "items": {
+            "$ref": "#/$defs/PlanRemoval"
+          },
+          "type": "array"
+        },
+        "sequence": {
+          "$ref": "#/$defs/PlanSequence"
+        },
+        "video_events": {
+          "items": {
+            "$ref": "#/$defs/VideoEvent"
+          },
+          "type": "array"
+        },
+        "video_tracks": {
+          "items": {
+            "$ref": "#/$defs/VideoTrack"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "plan_version",
+        "project_id",
+        "cutlist_version",
+        "host",
+        "method",
+        "sequence",
+        "media",
+        "video_events",
+        "video_tracks",
+        "audio_mode",
+        "audio_tracks",
+        "removals",
+        "markers",
+        "warnings"
+      ],
+      "title": "EditPlan",
       "type": "object"
     },
     "GTClip": {
@@ -308,9 +433,29 @@
       "title": "GroundTruth",
       "type": "object"
     },
+    "HostApp": {
+      "enum": [
+        "premiere",
+        "resolve",
+        "fcp",
+        "generic"
+      ],
+      "title": "HostApp",
+      "type": "string"
+    },
+    "MarkerColor": {
+      "enum": [
+        "red",
+        "yellow",
+        "green",
+        "blue"
+      ],
+      "title": "MarkerColor",
+      "type": "string"
+    },
     "MediaInfo": {
       "additionalProperties": false,
-      "description": "Facts about a source file, read with ffprobe (Phase 1).",
+      "description": "Facts about a source file, read with ffprobe (Phase 1).\n\nSound-only files (``has_video`` false) count frames at ``AUDIO_ONLY_FPS`` and\nhave width = height = 0.",
       "properties": {
         "audio_channels": {
           "default": 0,
@@ -347,8 +492,12 @@
         "fps": {
           "$ref": "#/$defs/Rational"
         },
+        "has_video": {
+          "default": true,
+          "type": "boolean"
+        },
         "height": {
-          "exclusiveMinimum": 0,
+          "minimum": 0,
           "type": "integer"
         },
         "is_vfr": {
@@ -371,13 +520,14 @@
           "type": "string"
         },
         "width": {
-          "exclusiveMinimum": 0,
+          "minimum": 0,
           "type": "integer"
         }
       },
       "required": [
         "fps",
         "is_vfr",
+        "has_video",
         "duration_frames",
         "width",
         "height",
@@ -430,6 +580,284 @@
         "height"
       ],
       "title": "OutputSettings",
+      "type": "object"
+    },
+    "PlanMarker": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/MarkerColor",
+          "default": "yellow"
+        },
+        "duration": {
+          "default": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "frame": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "default": "note",
+          "enum": [
+            "low_confidence",
+            "removal",
+            "note"
+          ],
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "frame",
+        "duration",
+        "color",
+        "kind",
+        "note"
+      ],
+      "title": "PlanMarker",
+      "type": "object"
+    },
+    "PlanMedia": {
+      "additionalProperties": false,
+      "description": "One source file (camera or recorder).",
+      "properties": {
+        "angle": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "1-based multicam angle (cameras only)"
+        },
+        "audio_channels": {
+          "type": "integer"
+        },
+        "audio_track": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "1-based audio track, if its audio is used"
+        },
+        "clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "drift_ppm": {
+          "default": 0.0,
+          "type": "number"
+        },
+        "duration_frames": {
+          "description": "At the media's own frame rate",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fps": {
+          "$ref": "#/$defs/Rational"
+        },
+        "has_audio": {
+          "type": "boolean"
+        },
+        "has_timecode": {
+          "type": "boolean"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "host_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The host's id of this media item"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "record_start_frame": {
+          "description": "Sequence frame where the media's first frame lands (< 0: starts before the sequence). Approximate under clock drift; pieces carry exact source times.",
+          "type": "integer"
+        },
+        "sample_rate": {
+          "type": "integer"
+        },
+        "shot": {
+          "$ref": "#/$defs/ShotType"
+        },
+        "start_timecode_frames": {
+          "description": "Embedded start timecode, own-rate frames",
+          "type": "integer"
+        },
+        "video_track": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "1-based track for stacked_enable"
+        },
+        "width": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "clip_id",
+        "path",
+        "name",
+        "label",
+        "host_ref",
+        "fps",
+        "duration_frames",
+        "width",
+        "height",
+        "has_audio",
+        "audio_channels",
+        "sample_rate",
+        "start_timecode_frames",
+        "has_timecode",
+        "shot",
+        "angle",
+        "video_track",
+        "audio_track",
+        "record_start_frame",
+        "drift_ppm"
+      ],
+      "title": "PlanMedia",
+      "type": "object"
+    },
+    "PlanMethod": {
+      "enum": [
+        "cuts",
+        "stacked_enable",
+        "multicam"
+      ],
+      "title": "PlanMethod",
+      "type": "string"
+    },
+    "PlanPiece": {
+      "additionalProperties": false,
+      "description": "Sequence frames [start, end) show the media from ``source_in``.",
+      "properties": {
+        "clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "source_in_frame": {
+          "description": "Frames at the media's own rate (nearest)",
+          "type": "integer"
+        },
+        "source_in_sample": {
+          "description": "Samples at the media's audio rate (nearest)",
+          "type": "integer"
+        },
+        "source_in_ticks": {
+          "description": "Premiere ticks (254016000000 per second)",
+          "type": "integer"
+        },
+        "start": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "clip_id",
+        "source_in_frame",
+        "source_in_sample",
+        "source_in_ticks"
+      ],
+      "title": "PlanPiece",
+      "type": "object"
+    },
+    "PlanRemoval": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "kind"
+      ],
+      "title": "PlanRemoval",
+      "type": "object"
+    },
+    "PlanSequence": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_frames": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "fps": {
+          "$ref": "#/$defs/Rational"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "host_start_frame": {
+          "default": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "fps",
+        "width",
+        "height",
+        "duration_frames",
+        "host_start_frame"
+      ],
+      "title": "PlanSequence",
       "type": "object"
     },
     "Preset": {
@@ -852,6 +1280,156 @@
       ],
       "title": "SyncResult",
       "type": "object"
+    },
+    "TrackPiece": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "enabled": {
+          "description": "Live at this time (stacked_enable)",
+          "type": "boolean"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "source_in_frame": {
+          "description": "Frames at the media's own rate (nearest)",
+          "type": "integer"
+        },
+        "source_in_sample": {
+          "description": "Samples at the media's audio rate (nearest)",
+          "type": "integer"
+        },
+        "source_in_ticks": {
+          "description": "Premiere ticks (254016000000 per second)",
+          "type": "integer"
+        },
+        "start": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "clip_id",
+        "source_in_frame",
+        "source_in_sample",
+        "source_in_ticks",
+        "enabled"
+      ],
+      "title": "TrackPiece",
+      "type": "object"
+    },
+    "VideoEvent": {
+      "additionalProperties": false,
+      "description": "A piece of the live edit (what the viewer sees).",
+      "properties": {
+        "clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "reframe": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reframe"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reframe_vertical": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reframe"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shot": {
+          "$ref": "#/$defs/ShotType"
+        },
+        "source_in_frame": {
+          "description": "Frames at the media's own rate (nearest)",
+          "type": "integer"
+        },
+        "source_in_sample": {
+          "description": "Samples at the media's audio rate (nearest)",
+          "type": "integer"
+        },
+        "source_in_ticks": {
+          "description": "Premiere ticks (254016000000 per second)",
+          "type": "integer"
+        },
+        "start": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "clip_id",
+        "source_in_frame",
+        "source_in_sample",
+        "source_in_ticks",
+        "shot",
+        "confidence",
+        "reframe",
+        "reframe_vertical"
+      ],
+      "title": "VideoEvent",
+      "type": "object"
+    },
+    "VideoTrack": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "index": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pieces": {
+          "items": {
+            "$ref": "#/$defs/TrackPiece"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "index",
+        "clip_id",
+        "pieces"
+      ],
+      "title": "VideoTrack",
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -860,6 +1438,9 @@
   "properties": {
     "CutList": {
       "$ref": "#/$defs/CutList"
+    },
+    "EditPlan": {
+      "$ref": "#/$defs/EditPlan"
     },
     "GroundTruth": {
       "$ref": "#/$defs/GroundTruth"

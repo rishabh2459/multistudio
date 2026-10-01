@@ -32,6 +32,15 @@ export type SidecarStatus = 'stopped' | 'starting' | 'ready' | 'restarting' | 'f
 export type LogFn = (source: 'stdout' | 'stderr' | 'sidecar', line: string) => void;
 
 const READY = /^MULTICAM_API_READY port=(\d+)\s*$/;
+const RUNNING = /^MULTICAM_API_RUNNING port=(\d+)\s*$/;
+
+/** Port of an engine that already owns the data folder (printed instead of starting). */
+export function parseRunningLine(line: string): number | null {
+  const match = RUNNING.exec(line);
+  if (!match) return null;
+  const port = Number(match[1]);
+  return port > 0 && port < 65536 ? port : null;
+}
 
 /** Port from the server's ready line, or null for any other line. */
 export function parseReadyLine(line: string): number | null {
@@ -73,6 +82,8 @@ export interface SidecarOptions {
   log?: LogFn;
   readyTimeoutMs?: number;
   policy?: RestartPolicy;
+  /** Extra engine arguments (the app passes `--discovery` so NLE plugins can connect). */
+  extraArgs?: string[];
   /** For tests. */
   fetchImpl?: typeof fetch;
 }
@@ -84,6 +95,17 @@ export class SidecarError extends Error {
   ) {
     super(message);
     this.name = 'SidecarError';
+  }
+}
+
+/** Another engine (e.g. started headless by an NLE plugin) owns the data folder. */
+export class EngineAlreadyRunningError extends SidecarError {
+  constructor(
+    readonly port: number,
+    output: string[] = [],
+  ) {
+    super(`another engine is already running on port ${port}`, output);
+    this.name = 'EngineAlreadyRunningError';
   }
 }
 
@@ -158,6 +180,7 @@ export class Sidecar extends EventEmitter<SidecarEvents> {
     try {
       return await this.spawnOnce(portHint ?? 0);
     } catch (err) {
+      if (err instanceof EngineAlreadyRunningError) throw err;
       if (portHint) {
         // The old port may be taken by now: any free port will do.
         this.log('sidecar', `could not reuse port ${portHint}; trying any free port`);
@@ -169,7 +192,13 @@ export class Sidecar extends EventEmitter<SidecarEvents> {
 
   private spawnOnce(port: number): Promise<SidecarInfo> {
     const { backend, token, uiOrigin } = this.opts;
-    const args = [...backend.args, '--port', String(port), '--watch-stdin'];
+    const args = [
+      ...backend.args,
+      '--port',
+      String(port),
+      '--watch-stdin',
+      ...(this.opts.extraArgs ?? []),
+    ];
     this.log('sidecar', `starting: ${backend.command} ${args.join(' ')}`);
     this.recent = [];
     const child = spawn(backend.command, args, {
@@ -188,12 +217,17 @@ export class Sidecar extends EventEmitter<SidecarEvents> {
 
     return new Promise<SidecarInfo>((resolve, reject) => {
       let settled = false;
+      let runningPort: number | null = null;
       const fail = (message: string) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         this.killNow(child);
-        reject(new SidecarError(message, this.recentOutput));
+        reject(
+          runningPort !== null
+            ? new EngineAlreadyRunningError(runningPort, this.recentOutput)
+            : new SidecarError(message, this.recentOutput),
+        );
       };
       const timer = setTimeout(
         () => fail('the engine did not start in time'),
@@ -207,6 +241,7 @@ export class Sidecar extends EventEmitter<SidecarEvents> {
       };
       createInterface({ input: child.stdout! }).on('line', (line) => {
         remember('stdout', line);
+        runningPort = parseRunningLine(line) ?? runningPort;
         const ready = parseReadyLine(line);
         if (ready !== null && !settled) {
           const baseUrl = `http://127.0.0.1:${ready}`;
@@ -232,7 +267,14 @@ export class Sidecar extends EventEmitter<SidecarEvents> {
         this.log('sidecar', `engine stopped (${this._lastExit})`);
         if (this.proc === child) this.proc = null;
         if (!settled) {
-          fail(`the engine stopped during startup (${this._lastExit})`);
+          // Let the last stdout lines (e.g. MULTICAM_API_RUNNING) arrive first.
+          const message = `the engine stopped during startup (${this._lastExit})`;
+          const out = child.stdout;
+          if (!out || out.readableEnded || out.destroyed) fail(message);
+          else {
+            out.once('close', () => fail(message));
+            setTimeout(() => fail(message), 1_000);
+          }
           return;
         }
         if (!this.stopping) void this.recover();

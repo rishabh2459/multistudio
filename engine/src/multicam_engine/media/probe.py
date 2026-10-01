@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from multicam_engine.media.ffmpeg import FFmpegError, run_tool
-from multicam_engine.models.project import MediaInfo
+from multicam_engine.models.project import AUDIO_ONLY_FPS, MediaInfo
 from multicam_engine.models.time import Rational, Rounding, seconds_to_frames
 
 STANDARD_RATES: tuple[Fraction, ...] = tuple(
@@ -59,7 +59,7 @@ class ProbeError(RuntimeError):
 class ProbeResult:
     path: Path
     media: MediaInfo
-    video_stream_index: int
+    video_stream_index: int | None  # None: sound-only file
     audio_stream_index: int | None
     #: Exact duration of the video stream, in seconds.
     duration: Fraction
@@ -168,9 +168,11 @@ def parse_probe(
         (s for s in streams if s.get("codec_type") == "video" and not _is_attached_picture(s)),
         None,
     )
-    if video is None:
-        raise ProbeError(f"{path.name}: no video stream")
     audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+    if video is None:
+        if audio is None:
+            raise ProbeError(f"{path.name}: no video or audio stream")
+        return _audio_only(data, path, audio)
 
     r_rate, avg_rate = _rate(video.get("r_frame_rate")), _rate(video.get("avg_frame_rate"))
     fps = nominal_fps(r_rate, avg_rate)
@@ -221,6 +223,39 @@ def parse_probe(
     )
 
 
+def _audio_only(data: dict[str, Any], path: Path, audio: dict[str, Any]) -> ProbeResult:
+    """A sound-only file (separate mic / recorder track). Frame positions are
+    counted at ``AUDIO_ONLY_FPS``; there is no picture (width = height = 0)."""
+    fmt: dict[str, Any] = data.get("format") or {}
+    duration = _decimal(audio.get("duration")) or _decimal(fmt.get("duration"))
+    if duration is None or duration <= 0:
+        raise ProbeError(f"{path.name}: unknown duration")
+    start = _decimal(audio.get("start_time")) or Fraction(0)
+    media = MediaInfo(
+        fps=AUDIO_ONLY_FPS,
+        is_vfr=False,
+        has_video=False,
+        duration_frames=seconds_to_frames(duration, AUDIO_ONLY_FPS, Rounding.NEAREST),
+        width=0,
+        height=0,
+        video_codec="none",
+        audio_codec=str(audio.get("codec_name") or "unknown"),
+        audio_sample_rate=int(audio["sample_rate"]) if audio.get("sample_rate") else None,
+        audio_channels=int(audio.get("channels") or 0),
+        start_timecode=start_timecode(data, audio),
+    )
+    return ProbeResult(
+        path=path,
+        media=media,
+        video_stream_index=None,
+        audio_stream_index=int(audio["index"]),
+        duration=duration,
+        video_start=start,
+        audio_start=start,
+        rotation=0,
+    )
+
+
 # ------------------------------------------------------------------ running
 def _read_video_pts(path: Path, stream_index: int) -> list[int] | None:
     """Presentation timestamps of the first seconds of video (no decoding)."""
@@ -262,5 +297,7 @@ def probe(path: str | Path) -> ProbeResult:
         raise ProbeError(f"{path.name}: ffprobe could not read the file") from exc
     data: dict[str, Any] = json.loads(out)
     first = parse_probe(data, path)
+    if first.video_stream_index is None:
+        return first
     pts = _read_video_pts(path, first.video_stream_index)
     return parse_probe(data, path, pts) if pts is not None else first

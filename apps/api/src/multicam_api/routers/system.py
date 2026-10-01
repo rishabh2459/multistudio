@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 
 from multicam_api import __version__
+from multicam_api.discovery import active_jobs
 from multicam_api.routers._common import StateDep
 from multicam_api.schemas import Health, SystemInfo
 from multicam_engine import __version__ as engine_version
@@ -46,3 +47,17 @@ def info(state: StateDep, encoders: bool = False) -> SystemInfo:
         encoders_hevc=hevc,
         render_presets=sorted(PRESETS),
     )
+
+
+@router.post("/shutdown", status_code=202)
+def shutdown(request: Request, state: StateDep, force: bool = False) -> dict[str, bool]:
+    """Stop this engine (the desktop app uses it to take over from a headless engine
+    started by an NLE plugin). Refused while jobs run unless ``force``; only
+    available when the engine has an API token."""
+    stop = getattr(request.app.state, "shutdown", None)
+    if stop is None or not state.settings.token:
+        raise HTTPException(403, "this engine cannot be stopped over HTTP")
+    if not force and active_jobs(state.db) > 0:
+        raise HTTPException(409, "jobs are running; try again when they finish")
+    stop()
+    return {"stopping": True}

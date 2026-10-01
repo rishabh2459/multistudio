@@ -80,6 +80,75 @@
         "title": "AudioMode",
         "type": "string"
       },
+      "AudioTrack-Input": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "gain_db": {
+            "default": 0.0,
+            "title": "Gain Db",
+            "type": "number"
+          },
+          "index": {
+            "minimum": 1.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "pieces": {
+            "items": {
+              "$ref": "#/components/schemas/PlanPiece"
+            },
+            "title": "Pieces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "index",
+          "clip_id",
+          "pieces"
+        ],
+        "title": "AudioTrack",
+        "type": "object"
+      },
+      "AudioTrack-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "gain_db": {
+            "default": 0.0,
+            "title": "Gain Db",
+            "type": "number"
+          },
+          "index": {
+            "minimum": 1.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "pieces": {
+            "items": {
+              "$ref": "#/components/schemas/PlanPiece"
+            },
+            "title": "Pieces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "index",
+          "clip_id",
+          "gain_db",
+          "pieces"
+        ],
+        "title": "AudioTrack",
+        "type": "object"
+      },
       "CameraLayout-Input": {
         "additionalProperties": false,
         "description": "One camera (clip), what kind of shot it is and who is visible in it.",
@@ -270,7 +339,8 @@
         "enum": [
           "speaker",
           "wide",
-          "broll"
+          "broll",
+          "mic"
         ],
         "title": "ClipRole",
         "type": "string"
@@ -501,6 +571,237 @@
         "title": "CutListVersion",
         "type": "object"
       },
+      "EditPlan-Input": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_mode": {
+            "$ref": "#/components/schemas/AudioMode",
+            "default": "mix"
+          },
+          "audio_tracks": {
+            "items": {
+              "$ref": "#/components/schemas/AudioTrack-Input"
+            },
+            "title": "Audio Tracks",
+            "type": "array"
+          },
+          "cutlist_version": {
+            "title": "Cutlist Version",
+            "type": "integer"
+          },
+          "host": {
+            "$ref": "#/components/schemas/HostApp",
+            "default": "generic"
+          },
+          "markers": {
+            "items": {
+              "$ref": "#/components/schemas/PlanMarker-Input"
+            },
+            "title": "Markers",
+            "type": "array"
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/PlanMedia-Input"
+            },
+            "title": "Media",
+            "type": "array"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PlanMethod",
+            "default": "stacked_enable"
+          },
+          "plan_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Plan Version",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "removals": {
+            "description": "Approved only",
+            "items": {
+              "$ref": "#/components/schemas/PlanRemoval"
+            },
+            "title": "Removals",
+            "type": "array"
+          },
+          "sequence": {
+            "$ref": "#/components/schemas/PlanSequence-Input"
+          },
+          "video_events": {
+            "items": {
+              "$ref": "#/components/schemas/VideoEvent-Input"
+            },
+            "title": "Video Events",
+            "type": "array"
+          },
+          "video_tracks": {
+            "items": {
+              "$ref": "#/components/schemas/VideoTrack"
+            },
+            "title": "Video Tracks",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "project_id",
+          "cutlist_version",
+          "sequence",
+          "media",
+          "video_events",
+          "video_tracks",
+          "audio_tracks"
+        ],
+        "title": "EditPlan",
+        "type": "object"
+      },
+      "EditPlan-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_mode": {
+            "$ref": "#/components/schemas/AudioMode",
+            "default": "mix"
+          },
+          "audio_tracks": {
+            "items": {
+              "$ref": "#/components/schemas/AudioTrack-Output"
+            },
+            "title": "Audio Tracks",
+            "type": "array"
+          },
+          "cutlist_version": {
+            "title": "Cutlist Version",
+            "type": "integer"
+          },
+          "host": {
+            "$ref": "#/components/schemas/HostApp",
+            "default": "generic"
+          },
+          "markers": {
+            "items": {
+              "$ref": "#/components/schemas/PlanMarker-Output"
+            },
+            "title": "Markers",
+            "type": "array"
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/PlanMedia-Output"
+            },
+            "title": "Media",
+            "type": "array"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PlanMethod",
+            "default": "stacked_enable"
+          },
+          "plan_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Plan Version",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "removals": {
+            "description": "Approved only",
+            "items": {
+              "$ref": "#/components/schemas/PlanRemoval"
+            },
+            "title": "Removals",
+            "type": "array"
+          },
+          "sequence": {
+            "$ref": "#/components/schemas/PlanSequence-Output"
+          },
+          "video_events": {
+            "items": {
+              "$ref": "#/components/schemas/VideoEvent-Output"
+            },
+            "title": "Video Events",
+            "type": "array"
+          },
+          "video_tracks": {
+            "items": {
+              "$ref": "#/components/schemas/VideoTrack"
+            },
+            "title": "Video Tracks",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plan_version",
+          "project_id",
+          "cutlist_version",
+          "host",
+          "method",
+          "sequence",
+          "media",
+          "video_events",
+          "video_tracks",
+          "audio_mode",
+          "audio_tracks",
+          "removals",
+          "markers",
+          "warnings"
+        ],
+        "title": "EditPlan",
+        "type": "object"
+      },
+      "ExportFileOut": {
+        "additionalProperties": false,
+        "properties": {
+          "cutlist_version": {
+            "title": "Cutlist Version",
+            "type": "integer"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "format",
+          "path",
+          "cutlist_version",
+          "warnings"
+        ],
+        "title": "ExportFileOut",
+        "type": "object"
+      },
       "ExportOut": {
         "additionalProperties": false,
         "properties": {
@@ -592,6 +893,67 @@
         "title": "ExportOut",
         "type": "object"
       },
+      "FeedbackIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/EditPlan-Input",
+            "description": "The editor's final timeline, read back from the host"
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "title": "FeedbackIn",
+        "type": "object"
+      },
+      "FeedbackOut": {
+        "additionalProperties": false,
+        "properties": {
+          "cuts_auto": {
+            "title": "Cuts Auto",
+            "type": "integer"
+          },
+          "cuts_final": {
+            "title": "Cuts Final",
+            "type": "integer"
+          },
+          "cuts_kept": {
+            "description": "Auto cuts the editor kept (within 2 frames)",
+            "title": "Cuts Kept",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "stored": {
+            "title": "Stored",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stored",
+          "path",
+          "cuts_auto",
+          "cuts_final",
+          "cuts_kept"
+        ],
+        "title": "FeedbackOut",
+        "type": "object"
+      },
       "FileStatus": {
         "enum": [
           "ok",
@@ -615,6 +977,51 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "Handshake": {
+        "additionalProperties": false,
+        "properties": {
+          "api_version": {
+            "default": "1.0.0",
+            "title": "Api Version",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "data_dir": {
+            "title": "Data Dir",
+            "type": "string"
+          },
+          "engine_version": {
+            "title": "Engine Version",
+            "type": "string"
+          },
+          "licence": {
+            "$ref": "#/components/schemas/LicenceInfo"
+          },
+          "models": {
+            "$ref": "#/components/schemas/ModelsAvailable"
+          },
+          "pid": {
+            "title": "Pid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "engine_version",
+          "capabilities",
+          "models",
+          "licence",
+          "data_dir",
+          "pid"
+        ],
+        "title": "Handshake",
+        "type": "object"
+      },
       "Health": {
         "additionalProperties": false,
         "properties": {
@@ -633,6 +1040,83 @@
           "version"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "HostApp": {
+        "enum": [
+          "premiere",
+          "resolve",
+          "fcp",
+          "generic"
+        ],
+        "title": "HostApp",
+        "type": "string"
+      },
+      "HostInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "$ref": "#/components/schemas/HostApp"
+          },
+          "os": {
+            "default": "",
+            "enum": [
+              "mac",
+              "windows",
+              "linux",
+              ""
+            ],
+            "title": "Os",
+            "type": "string"
+          },
+          "version": {
+            "default": "",
+            "maxLength": 40,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "app"
+        ],
+        "title": "HostInfo",
+        "type": "object"
+      },
+      "HostSequence": {
+        "additionalProperties": false,
+        "properties": {
+          "fps": {
+            "$ref": "#/components/schemas/Rational"
+          },
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fps",
+          "width",
+          "height"
+        ],
+        "title": "HostSequence",
         "type": "object"
       },
       "JobCreate": {
@@ -800,9 +1284,49 @@
         "title": "JobStatus",
         "type": "string"
       },
+      "LicenceInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "plan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "status": {
+            "default": "dev",
+            "enum": [
+              "dev",
+              "trial",
+              "active",
+              "expired",
+              "missing"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "LicenceInfo",
+        "type": "object"
+      },
+      "MarkerColor": {
+        "enum": [
+          "red",
+          "yellow",
+          "green",
+          "blue"
+        ],
+        "title": "MarkerColor",
+        "type": "string"
+      },
       "MediaInfo": {
         "additionalProperties": false,
-        "description": "Facts about a source file, read with ffprobe (Phase 1).",
+        "description": "Facts about a source file, read with ffprobe (Phase 1).\n\nSound-only files (``has_video`` false) count frames at ``AUDIO_ONLY_FPS`` and\nhave width = height = 0.",
         "properties": {
           "audio_channels": {
             "default": 0,
@@ -841,8 +1365,13 @@
           "fps": {
             "$ref": "#/components/schemas/Rational"
           },
+          "has_video": {
+            "default": true,
+            "title": "Has Video",
+            "type": "boolean"
+          },
           "height": {
-            "exclusiveMinimum": 0.0,
+            "minimum": 0.0,
             "title": "Height",
             "type": "integer"
           },
@@ -868,7 +1397,7 @@
             "type": "string"
           },
           "width": {
-            "exclusiveMinimum": 0.0,
+            "minimum": 0.0,
             "title": "Width",
             "type": "integer"
           }
@@ -876,6 +1405,7 @@
         "required": [
           "fps",
           "is_vfr",
+          "has_video",
           "duration_frames",
           "width",
           "height",
@@ -886,6 +1416,30 @@
           "start_timecode"
         ],
         "title": "MediaInfo",
+        "type": "object"
+      },
+      "ModelsAvailable": {
+        "additionalProperties": false,
+        "properties": {
+          "asr": {
+            "default": false,
+            "title": "Asr",
+            "type": "boolean"
+          },
+          "face": {
+            "title": "Face",
+            "type": "boolean"
+          },
+          "vad": {
+            "title": "Vad",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "vad",
+          "face"
+        ],
+        "title": "ModelsAvailable",
         "type": "object"
       },
       "NleExportIn": {
@@ -978,6 +1532,578 @@
           "height"
         ],
         "title": "OutputSettings",
+        "type": "object"
+      },
+      "PlanMarker-Input": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "$ref": "#/components/schemas/MarkerColor",
+            "default": "yellow"
+          },
+          "duration": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Duration",
+            "type": "integer"
+          },
+          "frame": {
+            "minimum": 0.0,
+            "title": "Frame",
+            "type": "integer"
+          },
+          "kind": {
+            "default": "note",
+            "enum": [
+              "low_confidence",
+              "removal",
+              "note"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "frame"
+        ],
+        "title": "PlanMarker",
+        "type": "object"
+      },
+      "PlanMarker-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "$ref": "#/components/schemas/MarkerColor",
+            "default": "yellow"
+          },
+          "duration": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Duration",
+            "type": "integer"
+          },
+          "frame": {
+            "minimum": 0.0,
+            "title": "Frame",
+            "type": "integer"
+          },
+          "kind": {
+            "default": "note",
+            "enum": [
+              "low_confidence",
+              "removal",
+              "note"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "frame",
+          "duration",
+          "color",
+          "kind",
+          "note"
+        ],
+        "title": "PlanMarker",
+        "type": "object"
+      },
+      "PlanMedia-Input": {
+        "additionalProperties": false,
+        "description": "One source file (camera or recorder).",
+        "properties": {
+          "angle": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based multicam angle (cameras only)",
+            "title": "Angle"
+          },
+          "audio_channels": {
+            "title": "Audio Channels",
+            "type": "integer"
+          },
+          "audio_track": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based audio track, if its audio is used",
+            "title": "Audio Track"
+          },
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "drift_ppm": {
+            "default": 0.0,
+            "title": "Drift Ppm",
+            "type": "number"
+          },
+          "duration_frames": {
+            "description": "At the media's own frame rate",
+            "minimum": 0.0,
+            "title": "Duration Frames",
+            "type": "integer"
+          },
+          "fps": {
+            "$ref": "#/components/schemas/Rational"
+          },
+          "has_audio": {
+            "title": "Has Audio",
+            "type": "boolean"
+          },
+          "has_timecode": {
+            "title": "Has Timecode",
+            "type": "boolean"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "host_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The host's id of this media item",
+            "title": "Host Ref"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "record_start_frame": {
+            "description": "Sequence frame where the media's first frame lands (< 0: starts before the sequence). Approximate under clock drift; pieces carry exact source times.",
+            "title": "Record Start Frame",
+            "type": "integer"
+          },
+          "sample_rate": {
+            "title": "Sample Rate",
+            "type": "integer"
+          },
+          "shot": {
+            "$ref": "#/components/schemas/ShotType"
+          },
+          "start_timecode_frames": {
+            "description": "Embedded start timecode, own-rate frames",
+            "title": "Start Timecode Frames",
+            "type": "integer"
+          },
+          "video_track": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based track for stacked_enable",
+            "title": "Video Track"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clip_id",
+          "path",
+          "name",
+          "label",
+          "fps",
+          "duration_frames",
+          "width",
+          "height",
+          "has_audio",
+          "audio_channels",
+          "sample_rate",
+          "start_timecode_frames",
+          "has_timecode",
+          "shot",
+          "angle",
+          "video_track",
+          "audio_track",
+          "record_start_frame"
+        ],
+        "title": "PlanMedia",
+        "type": "object"
+      },
+      "PlanMedia-Output": {
+        "additionalProperties": false,
+        "description": "One source file (camera or recorder).",
+        "properties": {
+          "angle": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based multicam angle (cameras only)",
+            "title": "Angle"
+          },
+          "audio_channels": {
+            "title": "Audio Channels",
+            "type": "integer"
+          },
+          "audio_track": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based audio track, if its audio is used",
+            "title": "Audio Track"
+          },
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "drift_ppm": {
+            "default": 0.0,
+            "title": "Drift Ppm",
+            "type": "number"
+          },
+          "duration_frames": {
+            "description": "At the media's own frame rate",
+            "minimum": 0.0,
+            "title": "Duration Frames",
+            "type": "integer"
+          },
+          "fps": {
+            "$ref": "#/components/schemas/Rational"
+          },
+          "has_audio": {
+            "title": "Has Audio",
+            "type": "boolean"
+          },
+          "has_timecode": {
+            "title": "Has Timecode",
+            "type": "boolean"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "host_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The host's id of this media item",
+            "title": "Host Ref"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "record_start_frame": {
+            "description": "Sequence frame where the media's first frame lands (< 0: starts before the sequence). Approximate under clock drift; pieces carry exact source times.",
+            "title": "Record Start Frame",
+            "type": "integer"
+          },
+          "sample_rate": {
+            "title": "Sample Rate",
+            "type": "integer"
+          },
+          "shot": {
+            "$ref": "#/components/schemas/ShotType"
+          },
+          "start_timecode_frames": {
+            "description": "Embedded start timecode, own-rate frames",
+            "title": "Start Timecode Frames",
+            "type": "integer"
+          },
+          "video_track": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based track for stacked_enable",
+            "title": "Video Track"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clip_id",
+          "path",
+          "name",
+          "label",
+          "host_ref",
+          "fps",
+          "duration_frames",
+          "width",
+          "height",
+          "has_audio",
+          "audio_channels",
+          "sample_rate",
+          "start_timecode_frames",
+          "has_timecode",
+          "shot",
+          "angle",
+          "video_track",
+          "audio_track",
+          "record_start_frame",
+          "drift_ppm"
+        ],
+        "title": "PlanMedia",
+        "type": "object"
+      },
+      "PlanMethod": {
+        "enum": [
+          "cuts",
+          "stacked_enable",
+          "multicam"
+        ],
+        "title": "PlanMethod",
+        "type": "string"
+      },
+      "PlanPiece": {
+        "additionalProperties": false,
+        "description": "Sequence frames [start, end) show the media from ``source_in``.",
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "source_in_frame": {
+            "description": "Frames at the media's own rate (nearest)",
+            "title": "Source In Frame",
+            "type": "integer"
+          },
+          "source_in_sample": {
+            "description": "Samples at the media's audio rate (nearest)",
+            "title": "Source In Sample",
+            "type": "integer"
+          },
+          "source_in_ticks": {
+            "description": "Premiere ticks (254016000000 per second)",
+            "title": "Source In Ticks",
+            "type": "integer"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "clip_id",
+          "source_in_frame",
+          "source_in_sample",
+          "source_in_ticks"
+        ],
+        "title": "PlanPiece",
+        "type": "object"
+      },
+      "PlanRemoval": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "kind"
+        ],
+        "title": "PlanRemoval",
+        "type": "object"
+      },
+      "PlanSequence-Input": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_frames": {
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Frames",
+            "type": "integer"
+          },
+          "fps": {
+            "$ref": "#/components/schemas/Rational"
+          },
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "host_start_frame": {
+            "default": 0,
+            "title": "Host Start Frame",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "fps",
+          "width",
+          "height",
+          "duration_frames"
+        ],
+        "title": "PlanSequence",
+        "type": "object"
+      },
+      "PlanSequence-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_frames": {
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Frames",
+            "type": "integer"
+          },
+          "fps": {
+            "$ref": "#/components/schemas/Rational"
+          },
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "host_start_frame": {
+            "default": 0,
+            "title": "Host Start Frame",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "fps",
+          "width",
+          "height",
+          "duration_frames",
+          "host_start_frame"
+        ],
+        "title": "PlanSequence",
+        "type": "object"
+      },
+      "PlanSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "cutlist_version": {
+            "title": "Cutlist Version",
+            "type": "integer"
+          },
+          "cuts": {
+            "title": "Cuts",
+            "type": "integer"
+          },
+          "duration_frames": {
+            "title": "Duration Frames",
+            "type": "integer"
+          },
+          "low_confidence_cuts": {
+            "title": "Low Confidence Cuts",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cutlist_version",
+          "source",
+          "cuts",
+          "duration_frames",
+          "low_confidence_cuts"
+        ],
+        "title": "PlanSummary",
         "type": "object"
       },
       "Preset": {
@@ -1619,6 +2745,108 @@
         "title": "RemovalKind",
         "type": "string"
       },
+      "RoleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ClipRole"
+          },
+          "speaker_label": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker Label"
+          }
+        },
+        "required": [
+          "clip_id",
+          "role"
+        ],
+        "title": "RoleIn",
+        "type": "object"
+      },
+      "RunIn": {
+        "additionalProperties": false,
+        "properties": {
+          "framing": {
+            "default": false,
+            "description": "Also auto-frame (faces, punch-ins)",
+            "title": "Framing",
+            "type": "boolean"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "const": "auto",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "enum": [
+                    "sync",
+                    "analyze",
+                    "decide",
+                    "reframe"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "default": "auto",
+            "description": "\"auto\" = everything; or exactly one step, e.g. [\"decide\"]",
+            "title": "Steps"
+          },
+          "vad": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "silero",
+              "energy"
+            ],
+            "title": "Vad",
+            "type": "string"
+          }
+        },
+        "title": "RunIn",
+        "type": "object"
+      },
+      "RunOut": {
+        "additionalProperties": false,
+        "properties": {
+          "events_url": {
+            "title": "Events Url",
+            "type": "string"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "kind",
+          "events_url"
+        ],
+        "title": "RunOut",
+        "type": "object"
+      },
       "Segment-Input": {
         "additionalProperties": false,
         "properties": {
@@ -1765,6 +2993,468 @@
         "title": "SegmentSource",
         "type": "string"
       },
+      "SessionClipIn": {
+        "additionalProperties": false,
+        "description": "A clip as the host sees it. Frames are at the host *sequence* rate.",
+        "properties": {
+          "audio_channels": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Channels"
+          },
+          "host_ref": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host Ref"
+          },
+          "in_frame": {
+            "default": 0,
+            "description": "Media offset of the clip item's first frame",
+            "minimum": 0.0,
+            "title": "In Frame",
+            "type": "integer"
+          },
+          "kind": {
+            "default": "video",
+            "description": "audio = a sound-only mic / recorder track",
+            "enum": [
+              "video",
+              "audio"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "out_frame": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Out Frame"
+          },
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "record_start_frame": {
+            "default": 0,
+            "description": "Sequence frame where the clip item starts",
+            "title": "Record Start Frame",
+            "type": "integer"
+          },
+          "track": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "SessionClipIn",
+        "type": "object"
+      },
+      "SessionClipOut": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "file_status": {
+            "$ref": "#/components/schemas/FileStatus"
+          },
+          "host_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host Ref"
+          },
+          "kind": {
+            "enum": [
+              "video",
+              "audio"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ClipRole"
+          },
+          "sync_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Confidence"
+          },
+          "synced": {
+            "title": "Synced",
+            "type": "boolean"
+          },
+          "track": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track"
+          }
+        },
+        "required": [
+          "clip_id",
+          "path",
+          "name",
+          "kind",
+          "role",
+          "label",
+          "host_ref",
+          "track",
+          "file_status",
+          "synced",
+          "sync_confidence"
+        ],
+        "title": "SessionClipOut",
+        "type": "object"
+      },
+      "SessionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "already_synced": {
+            "default": false,
+            "description": "Clips come from a synced sequence: skip audio sync",
+            "title": "Already Synced",
+            "type": "boolean"
+          },
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/SessionClipIn"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Clips",
+            "type": "array"
+          },
+          "host": {
+            "$ref": "#/components/schemas/HostInfo"
+          },
+          "host_sequence_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Re-sending the same id reuses the session",
+            "title": "Host Sequence Id"
+          },
+          "sequence": {
+            "$ref": "#/components/schemas/HostSequence"
+          }
+        },
+        "required": [
+          "host",
+          "sequence",
+          "clips"
+        ],
+        "title": "SessionCreate",
+        "type": "object"
+      },
+      "SessionOut": {
+        "additionalProperties": false,
+        "properties": {
+          "already_synced": {
+            "title": "Already Synced",
+            "type": "boolean"
+          },
+          "cameras": {
+            "items": {
+              "$ref": "#/components/schemas/CameraLayout-Output"
+            },
+            "title": "Cameras",
+            "type": "array"
+          },
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/SessionClipOut"
+            },
+            "title": "Clips",
+            "type": "array"
+          },
+          "host": {
+            "$ref": "#/components/schemas/HostInfo"
+          },
+          "host_sequence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host Sequence Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "layout_custom": {
+            "title": "Layout Custom",
+            "type": "boolean"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PlanMethod"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preset": {
+            "$ref": "#/components/schemas/Preset"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "reused": {
+            "default": false,
+            "title": "Reused",
+            "type": "boolean"
+          },
+          "speakers": {
+            "items": {
+              "$ref": "#/components/schemas/Speaker-Output"
+            },
+            "title": "Speakers",
+            "type": "array"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SessionState"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/SwitchSettings-Output"
+          },
+          "switch_custom": {
+            "title": "Switch Custom",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "host",
+          "host_sequence_id",
+          "already_synced",
+          "method",
+          "state",
+          "name",
+          "clips",
+          "speakers",
+          "cameras",
+          "layout_custom",
+          "preset",
+          "switch",
+          "switch_custom",
+          "job",
+          "plan",
+          "warnings"
+        ],
+        "title": "SessionOut",
+        "type": "object"
+      },
+      "SessionSetup": {
+        "additionalProperties": false,
+        "properties": {
+          "layout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectLayout"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanMethod"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Preset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reset_layout": {
+            "default": false,
+            "title": "Reset Layout",
+            "type": "boolean"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Quick setup: a role (+ name) per clip",
+            "title": "Roles"
+          },
+          "switch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SwitchSettings-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "SessionSetup",
+        "type": "object"
+      },
+      "SessionState": {
+        "enum": [
+          "setup",
+          "running",
+          "ready",
+          "failed"
+        ],
+        "title": "SessionState",
+        "type": "string"
+      },
       "ShotType": {
         "description": "What a camera shows. Switching understands every layout (D74).",
         "enum": [
@@ -1777,6 +3467,42 @@
         ],
         "title": "ShotType",
         "type": "string"
+      },
+      "SocialIn": {
+        "additionalProperties": false,
+        "properties": {
+          "aspects": {
+            "items": {
+              "enum": [
+                "16:9",
+                "4:5",
+                "9:16",
+                "1:1"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Aspects",
+            "type": "array"
+          },
+          "in_frame": {
+            "minimum": 0.0,
+            "title": "In Frame",
+            "type": "integer"
+          },
+          "out_frame": {
+            "exclusiveMinimum": 0.0,
+            "title": "Out Frame",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "in_frame",
+          "out_frame",
+          "aspects"
+        ],
+        "title": "SocialIn",
+        "type": "object"
       },
       "Speaker-Input": {
         "additionalProperties": false,
@@ -2268,6 +3994,57 @@
         "title": "TimelineOut",
         "type": "object"
       },
+      "TrackPiece": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Live at this time (stacked_enable)",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "source_in_frame": {
+            "description": "Frames at the media's own rate (nearest)",
+            "title": "Source In Frame",
+            "type": "integer"
+          },
+          "source_in_sample": {
+            "description": "Samples at the media's audio rate (nearest)",
+            "title": "Source In Sample",
+            "type": "integer"
+          },
+          "source_in_ticks": {
+            "description": "Premiere ticks (254016000000 per second)",
+            "title": "Source In Ticks",
+            "type": "integer"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "clip_id",
+          "source_in_frame",
+          "source_in_sample",
+          "source_in_ticks",
+          "enabled"
+        ],
+        "title": "TrackPiece",
+        "type": "object"
+      },
       "UserPresetIn": {
         "additionalProperties": false,
         "properties": {
@@ -2326,6 +4103,200 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VideoEvent-Input": {
+        "additionalProperties": false,
+        "description": "A piece of the live edit (what the viewer sees).",
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "reframe": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reframe-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reframe_vertical": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reframe-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shot": {
+            "$ref": "#/components/schemas/ShotType"
+          },
+          "source_in_frame": {
+            "description": "Frames at the media's own rate (nearest)",
+            "title": "Source In Frame",
+            "type": "integer"
+          },
+          "source_in_sample": {
+            "description": "Samples at the media's audio rate (nearest)",
+            "title": "Source In Sample",
+            "type": "integer"
+          },
+          "source_in_ticks": {
+            "description": "Premiere ticks (254016000000 per second)",
+            "title": "Source In Ticks",
+            "type": "integer"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "clip_id",
+          "source_in_frame",
+          "source_in_sample",
+          "source_in_ticks",
+          "shot"
+        ],
+        "title": "VideoEvent",
+        "type": "object"
+      },
+      "VideoEvent-Output": {
+        "additionalProperties": false,
+        "description": "A piece of the live edit (what the viewer sees).",
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "reframe": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reframe-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reframe_vertical": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reframe-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shot": {
+            "$ref": "#/components/schemas/ShotType"
+          },
+          "source_in_frame": {
+            "description": "Frames at the media's own rate (nearest)",
+            "title": "Source In Frame",
+            "type": "integer"
+          },
+          "source_in_sample": {
+            "description": "Samples at the media's audio rate (nearest)",
+            "title": "Source In Sample",
+            "type": "integer"
+          },
+          "source_in_ticks": {
+            "description": "Premiere ticks (254016000000 per second)",
+            "title": "Source In Ticks",
+            "type": "integer"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "clip_id",
+          "source_in_frame",
+          "source_in_sample",
+          "source_in_ticks",
+          "shot",
+          "confidence",
+          "reframe",
+          "reframe_vertical"
+        ],
+        "title": "VideoEvent",
+        "type": "object"
+      },
+      "VideoTrack": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 1.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "pieces": {
+            "items": {
+              "$ref": "#/components/schemas/TrackPiece"
+            },
+            "title": "Pieces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "index",
+          "clip_id",
+          "pieces"
+        ],
+        "title": "VideoTrack",
         "type": "object"
       },
       "WaveformOut": {
@@ -2838,6 +4809,610 @@
         "summary": "Retry Job",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/plugin/v1/handshake": {
+      "get": {
+        "description": "Engine + API version and what this engine can do. Plugins check\n``api_version`` (same major) and ``capabilities`` before anything else.",
+        "operationId": "handshake_api_plugin_v1_handshake_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Handshake"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Handshake",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/presets": {
+      "get": {
+        "operationId": "list_presets_api_plugin_v1_presets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PresetOut"
+                  },
+                  "title": "Response List Presets Api Plugin V1 Presets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Presets",
+        "tags": [
+          "plugin"
+        ]
+      },
+      "post": {
+        "operationId": "create_preset_api_plugin_v1_presets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPresetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Preset",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions": {
+      "post": {
+        "description": "Create a session (and project) from the clips selected in the host.\nIdempotent on ``(host.app, host_sequence_id)``: the same clips reuse the\nexisting project, so its analysis cache makes a re-run fast.",
+        "operationId": "create_session_api_plugin_v1_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}": {
+      "get": {
+        "operationId": "get_session_api_plugin_v1_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}/editplan": {
+      "get": {
+        "description": "The edit as host operations (default: latest version, the session's method).",
+        "operationId": "get_editplan_api_plugin_v1_sessions__session_id__editplan_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "host",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/HostApp",
+              "default": "generic"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          },
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PlanMethod"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Method"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditPlan-Output"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Editplan",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}/events": {
+      "get": {
+        "description": "SSE: ``progress`` while the job runs, then ``plan_ready`` (with the plan\nsummary) or ``error`` (``{code, message, hint}``); the stream then ends.",
+        "operationId": "session_events_api_plugin_v1_sessions__session_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session Events",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}/export": {
+      "get": {
+        "description": "Write the plan as a file the host can import (Rule C fallback).",
+        "operationId": "export_session_api_plugin_v1_sessions__session_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "fcpxml",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportFileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Session",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}/feedback": {
+      "post": {
+        "description": "Store the editor's final timeline next to the auto edit (\"learn my style\", PL8).",
+        "operationId": "feedback_api_plugin_v1_sessions__session_id__feedback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feedback",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}/run": {
+      "post": {
+        "operationId": "run_session_api_plugin_v1_sessions__session_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Session",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}/setup": {
+      "patch": {
+        "description": "Who is who (roles or a full layout), editing style, apply method.",
+        "operationId": "setup_session_api_plugin_v1_sessions__session_id__setup_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionSetup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Setup Session",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}/social": {
+      "post": {
+        "description": "Social clips (in/out -> one plan per aspect ratio) arrive in PL5.",
+        "operationId": "social_clips_api_plugin_v1_sessions__session_id__social_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocialIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Social Clips Api Plugin V1 Sessions  Session Id  Social Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Social Clips",
+        "tags": [
+          "plugin"
         ]
       }
     },
@@ -3876,6 +6451,54 @@
           }
         },
         "summary": "Info",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/system/shutdown": {
+      "post": {
+        "description": "Stop this engine (the desktop app uses it to take over from a headless engine\nstarted by an NLE plugin). Refused while jobs run unless ``force``; only\navailable when the engine has an API token.",
+        "operationId": "shutdown_api_system_shutdown_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Shutdown Api System Shutdown Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Shutdown",
         "tags": [
           "system"
         ]

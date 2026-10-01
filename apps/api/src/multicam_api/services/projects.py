@@ -163,6 +163,11 @@ def follow_reference(project: ProjectRow) -> None:
     if ref is None or ref.media is None:
         return
     media = MediaInfo.model_validate(ref.media)
+    if not media.has_video:  # sound-only reference: follow the first camera
+        cams = [MediaInfo.model_validate(c.media) for c in project.clips if c.media]
+        media = next((m for m in cams if m.has_video), media)
+        if not media.has_video:
+            return
     project.output = OutputSettings(
         fps=media.fps, width=_even(media.width), height=_even(media.height)
     ).model_dump(mode="json")

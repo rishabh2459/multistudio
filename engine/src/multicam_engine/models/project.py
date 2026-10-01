@@ -16,12 +16,15 @@ SCHEMA_VERSION: Final = 1
 #: Most cameras / mics one project may have (AutoPod parity: 10 + 10).
 MAX_CAMERAS: Final = 10
 MAX_SPEAKERS: Final = 10
+#: Frame clock of sound-only files (10 ms "frames").
+AUDIO_ONLY_FPS: Final = Rational(num=100, den=1)
 
 
 class ClipRole(StrEnum):
     SPEAKER = "speaker"  # a camera pointed at one person
     WIDE = "wide"  # a camera showing everyone
     BROLL = "broll"  # never auto-selected; manual use only
+    MIC = "mic"  # used for its sound only (separate mic / recorder); never shown
 
 
 class Preset(StrEnum):
@@ -65,13 +68,17 @@ class CameraLayout(StrictModel):
 
 
 class MediaInfo(StrictModel):
-    """Facts about a source file, read with ffprobe (Phase 1)."""
+    """Facts about a source file, read with ffprobe (Phase 1).
+
+    Sound-only files (``has_video`` false) count frames at ``AUDIO_ONLY_FPS`` and
+    have width = height = 0."""
 
     fps: Rational
     is_vfr: bool
+    has_video: bool = True
     duration_frames: int = Field(ge=0)
-    width: int = Field(gt=0)
-    height: int = Field(gt=0)
+    width: int = Field(ge=0)
+    height: int = Field(ge=0)
     video_codec: str
     audio_codec: str | None = None
     audio_sample_rate: int | None = Field(default=None, gt=0)

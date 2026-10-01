@@ -11,7 +11,9 @@ export type AudioMode = "mix" | "single";
  */
 export type RemovalKind = "filler" | "silence" | "manual";
 export type SegmentSource = "auto" | "manual";
-export type ClipRole = "speaker" | "wide" | "broll";
+export type AudioMode1 = "mix" | "single";
+export type HostApp = "premiere" | "resolve" | "fcp" | "generic";
+export type MarkerColor = "red" | "yellow" | "green" | "blue";
 /**
  * What a camera shows. Switching understands every layout (D74).
  *
@@ -19,18 +21,35 @@ export type ClipRole = "speaker" | "wide" | "broll";
  * via the `definition` "ShotType".
  */
 export type ShotType = "solo" | "two" | "three" | "four" | "wide" | "broll";
-export type ClipRole1 = "speaker" | "wide" | "broll";
+export type PlanMethod = "cuts" | "stacked_enable" | "multicam";
+export type ClipRole = "speaker" | "wide" | "broll" | "mic";
+export type ClipRole1 = "speaker" | "wide" | "broll" | "mic";
 export type Preset = "calm" | "balanced" | "dynamic" | "punchy";
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
  * via the `definition` "AudioMode".
  */
-export type AudioMode1 = "mix" | "single";
+export type AudioMode2 = "mix" | "single";
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
  * via the `definition` "ClipRole".
  */
-export type ClipRole2 = "speaker" | "wide" | "broll";
+export type ClipRole2 = "speaker" | "wide" | "broll" | "mic";
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "HostApp".
+ */
+export type HostApp1 = "premiere" | "resolve" | "fcp" | "generic";
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "MarkerColor".
+ */
+export type MarkerColor1 = "red" | "yellow" | "green" | "blue";
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "PlanMethod".
+ */
+export type PlanMethod1 = "cuts" | "stacked_enable" | "multicam";
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
  * via the `definition` "Preset".
@@ -47,6 +66,7 @@ export type SegmentSource1 = "auto" | "manual";
  */
 export interface MulticamSchemas {
   CutList?: CutList;
+  EditPlan?: EditPlan;
   GroundTruth?: GroundTruth;
   Project?: Project;
 }
@@ -159,6 +179,204 @@ export interface ReframeKey {
    * Timeline frame
    */
   frame: number;
+}
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "EditPlan".
+ */
+export interface EditPlan {
+  audio_mode: AudioMode1;
+  audio_tracks: AudioTrack[];
+  cutlist_version: number;
+  host: HostApp;
+  markers: PlanMarker[];
+  media: PlanMedia[];
+  method: PlanMethod;
+  plan_version: 1;
+  project_id: string;
+  /**
+   * Approved only
+   */
+  removals: PlanRemoval[];
+  sequence: PlanSequence;
+  video_events: VideoEvent[];
+  video_tracks: VideoTrack[];
+  warnings: string[];
+}
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "AudioTrack".
+ */
+export interface AudioTrack {
+  clip_id: string;
+  gain_db: number;
+  index: number;
+  pieces: PlanPiece[];
+}
+/**
+ * Sequence frames [start, end) show the media from ``source_in``.
+ *
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "PlanPiece".
+ */
+export interface PlanPiece {
+  clip_id: string;
+  end: number;
+  /**
+   * Frames at the media's own rate (nearest)
+   */
+  source_in_frame: number;
+  /**
+   * Samples at the media's audio rate (nearest)
+   */
+  source_in_sample: number;
+  /**
+   * Premiere ticks (254016000000 per second)
+   */
+  source_in_ticks: number;
+  start: number;
+}
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "PlanMarker".
+ */
+export interface PlanMarker {
+  color: MarkerColor;
+  duration: number;
+  frame: number;
+  kind: "low_confidence" | "removal" | "note";
+  note: string;
+}
+/**
+ * One source file (camera or recorder).
+ *
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "PlanMedia".
+ */
+export interface PlanMedia {
+  /**
+   * 1-based multicam angle (cameras only)
+   */
+  angle: number | null;
+  audio_channels: number;
+  /**
+   * 1-based audio track, if its audio is used
+   */
+  audio_track: number | null;
+  clip_id: string;
+  drift_ppm: number;
+  /**
+   * At the media's own frame rate
+   */
+  duration_frames: number;
+  fps: Rational;
+  has_audio: boolean;
+  has_timecode: boolean;
+  height: number;
+  /**
+   * The host's id of this media item
+   */
+  host_ref: string | null;
+  label: string;
+  name: string;
+  path: string;
+  /**
+   * Sequence frame where the media's first frame lands (< 0: starts before the sequence). Approximate under clock drift; pieces carry exact source times.
+   */
+  record_start_frame: number;
+  sample_rate: number;
+  shot: ShotType;
+  /**
+   * Embedded start timecode, own-rate frames
+   */
+  start_timecode_frames: number;
+  /**
+   * 1-based track for stacked_enable
+   */
+  video_track: number | null;
+  width: number;
+}
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "PlanRemoval".
+ */
+export interface PlanRemoval {
+  end: number;
+  kind: string;
+  start: number;
+}
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "PlanSequence".
+ */
+export interface PlanSequence {
+  duration_frames: number;
+  fps: Rational;
+  height: number;
+  host_start_frame: number;
+  name: string;
+  width: number;
+}
+/**
+ * A piece of the live edit (what the viewer sees).
+ *
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "VideoEvent".
+ */
+export interface VideoEvent {
+  clip_id: string;
+  confidence: number | null;
+  end: number;
+  reframe: Reframe | null;
+  reframe_vertical: Reframe | null;
+  shot: ShotType;
+  /**
+   * Frames at the media's own rate (nearest)
+   */
+  source_in_frame: number;
+  /**
+   * Samples at the media's audio rate (nearest)
+   */
+  source_in_sample: number;
+  /**
+   * Premiere ticks (254016000000 per second)
+   */
+  source_in_ticks: number;
+  start: number;
+}
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "VideoTrack".
+ */
+export interface VideoTrack {
+  clip_id: string;
+  index: number;
+  pieces: TrackPiece[];
+}
+/**
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "TrackPiece".
+ */
+export interface TrackPiece {
+  clip_id: string;
+  /**
+   * Live at this time (stacked_enable)
+   */
+  enabled: boolean;
+  end: number;
+  /**
+   * Frames at the media's own rate (nearest)
+   */
+  source_in_frame: number;
+  /**
+   * Samples at the media's audio rate (nearest)
+   */
+  source_in_sample: number;
+  /**
+   * Premiere ticks (254016000000 per second)
+   */
+  source_in_ticks: number;
+  start: number;
 }
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
@@ -311,6 +529,9 @@ export interface Clip {
 /**
  * Facts about a source file, read with ffprobe (Phase 1).
  *
+ * Sound-only files (``has_video`` false) count frames at ``AUDIO_ONLY_FPS`` and
+ * have width = height = 0.
+ *
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
  * via the `definition` "MediaInfo".
  */
@@ -320,6 +541,7 @@ export interface MediaInfo {
   audio_sample_rate: number | null;
   duration_frames: number;
   fps: Rational;
+  has_video: boolean;
   height: number;
   is_vfr: boolean;
   /**

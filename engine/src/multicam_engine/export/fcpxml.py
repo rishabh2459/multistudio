@@ -76,10 +76,13 @@ def to_fcpxml(tl: NleTimeline) -> str:
             "name": src.name,
             "start": frame_time(src.start_tc_frames if src.has_timecode else 0, src.fps),
             "duration": rational(round_to(src.duration, 1 / src.fps)),
-            "hasVideo": "1",
-            "format": format_id(src.fps, src.width, src.height),
-            "videoSources": "1",
         }
+        if src.has_video:
+            attrs.update(
+                hasVideo="1",
+                format=format_id(src.fps, src.width, src.height),
+                videoSources="1",
+            )
         if src.has_audio:
             attrs.update(
                 hasAudio="1",
@@ -127,6 +130,14 @@ def to_fcpxml(tl: NleTimeline) -> str:
             duration=frame_time(ev.frames, tl.fps),
             start=video_start(src, ev.source_in),
             srcEnable="video",
+        )
+    for marker in tl.markers:
+        ET.SubElement(
+            gap,
+            "marker",
+            start=frame_time(marker.frame, tl.fps),
+            duration=frame_time(1, tl.fps),
+            value=marker.note,
         )
     for lane, (clip_id, events) in enumerate(tl.audio.items(), start=1):
         src = tl.sources[clip_id]

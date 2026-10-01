@@ -18,6 +18,11 @@ extraResources:
   - from: ../../packaging/dist/multicam-api
     to: backend
 asar: true
+# multicam://start and multicam://open links from the NLE plugins (PLUGIN_PLAN 3.2).
+protocols:
+  - name: Multicam Studio
+    schemes:
+      - multicam
 npmRebuild: false
 mac:
   category: public.app-category.video
