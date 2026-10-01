@@ -1,0 +1,8 @@
+# Runs inside DaVinci Resolve's own Python (3.6+): keep old-style typing.
+extend = "../../../pyproject.toml"
+target-version = "py37"
+
+[lint]
+# os.path on purpose (same code on every Resolve Python); the launcher's file name is
+# what Resolve shows in its Scripts menu.
+extend-ignore = ["PTH", "N999"]

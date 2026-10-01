@@ -48,20 +48,21 @@ select = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["multicam_engine", "multicam_api"]
+known-first-party = ["multicam_engine", "multicam_api", "multicam_resolve"]
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-mypy_path = "engine/src:apps/api/src"
+mypy_path = "engine/src:apps/api/src:apps/plugins/resolve-script"
 files = [
   "engine/src/multicam_engine",
   "apps/api/src/multicam_api",
   "tests",
   "scripts",
   "packaging/scripts",
+  "apps/plugins/resolve-script/multicam_resolve",
 ]
 warn_unreachable = true
 

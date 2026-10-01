@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BlackmagicDesign>
+    <Plugin>
+        <Id>com.multicamstudio.resolve</Id>
+        <Name>Multicam Studio</Name>
+        <Version>0.1.0</Version>
+        <Description>Auto-edit multicam podcasts with the local Multicam Studio engine.</Description>
+        <FilePath>dist/main.js</FilePath>
+    </Plugin>
+</BlackmagicDesign>

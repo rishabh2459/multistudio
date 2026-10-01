@@ -789,7 +789,7 @@ Add these to `docs/DECISIONS.md` when each is confirmed.
 | PL3 | done | PL3 commit | `packages/plugin-core`: client, engine discovery/start, SSE + polling, `AutoEditController` state machine, apply decision + placements, setup guesses, React panel with injectable primitives, `FakeHost`; 24 tests incl. the full flow against a real headless engine. Open: setup auto-fill from face count (needs a face-count endpoint) |
 | PL4 | code done, spike pending | PL4 commit | `apps/plugins/premiere-uxp`: manifest v5, PremiereAdapter (selection from active sequence D88, xmeml import apply D87, markers), engine host (engine.json, multicam://start), Spectrum primitives, build + .ccx scripts, 12 tests on a rule-enforcing mock DOM. Open: build on the Mac and run the spike checklist in the plugin README in Premiere 25.6/26.x |
 | PL5 | partly | PL4 commit | Native apply for `cuts` (1 transaction) and `stacked_enable` (place + disable) behind a beta switch. Open: confirm in Premiere, measure native vs XML, re-apply/versions, social clips, jump cuts |
-| PL6 | not started | | |
+| PL6 | code done, spike pending | PL6 commit | `resolve-script` (Free+Studio, Python 3.6 stdlib: client, adapter, flow, UIManager window, installer; D90, D91) and `resolve-wi` (Studio, Electron, IPC bridge D92). 19 Python + 7 TS tests incl. full flows against a real engine. Open: spike checklist in Resolve 19/20 (endFrame, SetClipEnabled, timers) |
 | PL7 | not started | | |
 | PL8 | not started | | |
 | PL9 | not started | | |

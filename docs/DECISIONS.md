@@ -78,6 +78,9 @@ D1–D13 are recorded in `PROJECT_PLAN.md` §13. New decisions continue here.
 | D87 | 2026-10-01 | Premiere panel applies by **xmeml import** by default (`maxNativeEvents = 0`); native SequenceEditor apply (`cuts` 1 transaction, `stacked_enable` place + disable) ships behind a beta switch until the PL4 spike confirms the UXP DOM | XML import is one undo step and needs no unverified API; native code is ready and mock-tested for PL5 |
 | D88 | 2026-10-01 | Premiere selection = the active sequence: video tracks are cameras, audio-only files on audio tracks are mics, the first item per file gives its position; clips all at frame 0 with no trim count as *not* synced (engine runs audio sync) | Works for synced multicam timelines and for clips just dropped in |
 | D89 | 2026-10-01 | Shared panel UI takes injectable primitives; Premiere passes UXP Spectrum widgets (`sp-*`, events wired with listeners) | One set of React views for UXP and Electron |
+| D90 | 2026-10-01 | Resolve script = launcher in `Fusion/Scripts/Edit` + package in `<data>/resolve-plugin/`; Python 3.6 syntax, stdlib only (checked by a test); long steps in a worker thread, a UIManager timer copies status to the window | Works in Resolve Free; engine updates can replace the package; the window never freezes |
+| D91 | 2026-10-01 | Resolve native apply = one `AppendToTimeline` call (absolute `recordFrame`, source frames at the clip's own rate, `endFrame` inclusive pending the spike) + `SetClipEnabled(False)` for stacked; FCPXML import for multicam/reframe/huge edits | One call is fast and atomic enough; FCPXML covers what the API cannot |
+| D92 | 2026-10-01 | Resolve WI plugin: adapter in Electron main, panel in the renderer, a whitelisted IPC bridge that carries `{code, message, hint}` errors and strips callbacks | Resolve objects cannot leave the main process; same panel as Premiere |
 
 ## Dependencies added
 
