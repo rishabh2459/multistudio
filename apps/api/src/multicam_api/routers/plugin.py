@@ -15,6 +15,7 @@ import json
 import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -288,7 +289,7 @@ def create_session(body: SessionCreate, db: SessionDep) -> SessionOut:
         ).first()
     if existing is not None:
         project = _project(db, existing)
-        if [c.path for c in project.clips] == paths:
+        if sorted(c.path for c in project.clips) == sorted(paths):  # same files, any order
             _update_refs(existing, project, body)
             db.commit()
             return session_out(db, existing, reused=True)
@@ -335,30 +336,58 @@ def create_session(body: SessionCreate, db: SessionDep) -> SessionOut:
 
 
 def _update_refs(row: PluginSessionRow, project: ProjectRow, body: SessionCreate) -> None:
+    """Store the host's ids/positions per clip (matched by path) and, for an
+    already-synced host sequence, the sync offsets its positions imply."""
+    by_path = {str(Path(c.path).expanduser()): c for c in body.clips}
+    inputs = {c.id: by_path[c.path] for c in project.clips}
+    was_host_synced = bool(row.already_synced)
     row.host_app = body.host.app.value
     row.host_version = body.host.version
     row.host_os = body.host.os
     row.already_synced = body.already_synced
     row.method = row.method or PlanMethod.STACKED_ENABLE.value
     row.clip_refs = {
-        c.id: {"host_ref": inp.host_ref, "track": inp.track}
-        for c, inp in zip(project.clips, body.clips, strict=True)
+        cid: {"host_ref": inp.host_ref, "track": inp.track} for cid, inp in inputs.items()
     }
-    ref = next(i for i, c in enumerate(project.clips) if c.id == project.reference_clip_id)
-    row.host_start_frame = body.clips[ref].record_start_frame - body.clips[ref].in_frame
-    if body.already_synced and project.reference_clip_id:
-        # The event at sequence frame T is at media frame T - start + in in each clip,
-        # so offset (this clip minus reference) = (in - start) - (in_ref - start_ref).
-        fps = body.sequence.fps
-        base = body.clips[ref].in_frame - body.clips[ref].record_start_frame
-        for c, inp in zip(project.clips, body.clips, strict=True):
-            frames = (inp.in_frame - inp.record_start_frame) - base
-            c.sync = SyncResult(
-                reference_clip_id=UUID(project.reference_clip_id),
-                offset_samples=round(frames * SYNC_SAMPLE_RATE * fps.den / fps.num),
-                sample_rate=SYNC_SAMPLE_RATE,
-                confidence=1.0,
-            ).model_dump(mode="json")
+    ref_id = project.reference_clip_id or project.clips[0].id
+    ref = inputs[ref_id]
+    row.host_start_frame = ref.record_start_frame - ref.in_frame
+    if not body.already_synced:
+        if was_host_synced:  # those offsets came from the host, not from audio: sync again
+            for c in project.clips:
+                c.sync = None
+        return
+    # Sequence frame T shows media time (T - start + in) / fps of each clip, counted
+    # from its first video frame; the engine counts from the first audio sample, so
+    # offset = ((in - start) - (in_ref - start_ref)) / fps + lead(clip) - lead(ref),
+    # with lead = video_start - audio_start of the file.
+    fps = body.sequence.fps
+    base = ref.in_frame - ref.record_start_frame
+    leads = {c.id: _audio_lead(c.path) for c in project.clips}
+    lead_ref = leads.get(ref_id)
+    for c in project.clips:
+        inp = inputs[c.id]
+        frames = (inp.in_frame - inp.record_start_frame) - base
+        seconds = Fraction(frames * fps.den, fps.num)
+        lead = leads[c.id]
+        if lead is not None and lead_ref is not None:
+            seconds += lead - lead_ref
+        c.sync = SyncResult(
+            reference_clip_id=UUID(ref_id),
+            offset_samples=round(seconds * SYNC_SAMPLE_RATE),
+            sample_rate=SYNC_SAMPLE_RATE,
+            confidence=1.0,
+        ).model_dump(mode="json")
+
+
+def _audio_lead(path: str) -> Fraction | None:
+    """video_start - audio_start of a file (None if it cannot be probed)."""
+    try:
+        p = media_service.probe_cached(path)
+    except (FileNotFoundError, ProbeError):
+        return None
+    audio_start = p.audio_start if p.audio_start is not None else p.video_start
+    return Fraction(p.video_start - audio_start)
 
 
 @router.get("/sessions/{session_id}", response_model=SessionOut)

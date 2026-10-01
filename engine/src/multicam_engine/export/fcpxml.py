@@ -118,19 +118,24 @@ def to_fcpxml(tl: NleTimeline) -> str:
     def audio_start(src: Source, source_in: Fraction) -> str:
         return rational(src.start_seconds + round_to(source_in, Fraction(1, src.sample_rate)))
 
-    for ev in tl.video:
-        src = tl.sources[ev.clip_id]
-        ET.SubElement(
-            gap,
-            "asset-clip",
-            ref=assets[ev.clip_id],
-            lane="1",
-            name=src.label,
-            offset=frame_time(ev.start, tl.fps),
-            duration=frame_time(ev.frames, tl.fps),
-            start=video_start(src, ev.source_in),
-            srcEnable="video",
-        )
+    # Cut on lane 1, or (stacked) one lane per camera with the non-live pieces disabled.
+    layers = tl.stacked or [[(ev, True) for ev in tl.video]]
+    for lane, pieces in enumerate(layers, start=1):
+        for ev, enabled in pieces:
+            src = tl.sources[ev.clip_id]
+            clip = ET.SubElement(
+                gap,
+                "asset-clip",
+                ref=assets[ev.clip_id],
+                lane=str(lane),
+                name=src.label,
+                offset=frame_time(ev.start, tl.fps),
+                duration=frame_time(ev.frames, tl.fps),
+                start=video_start(src, ev.source_in),
+                srcEnable="video",
+            )
+            if not enabled:
+                clip.set("enabled", "0")
     for marker in tl.markers:
         ET.SubElement(
             gap,

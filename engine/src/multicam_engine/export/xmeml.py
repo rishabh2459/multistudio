@@ -89,12 +89,14 @@ def to_xmeml(tl: NleTimeline) -> str:
             _sub(asc, "samplerate", src.sample_rate)
             _sub(audio, "channelcount", src.audio_channels)
 
-    def clipitem(track: ET.Element, ev: Event, kind: str, trackindex: int) -> None:
+    def clipitem(
+        track: ET.Element, ev: Event, kind: str, trackindex: int, enabled: bool = True
+    ) -> None:
         src = tl.sources[ev.clip_id]
         counter["clip"] += 1
         item = _sub(track, "clipitem", id=f"clipitem-{counter['clip']}")
         _sub(item, "name", src.label if kind == "video" else f"{src.label} (audio)")
-        _sub(item, "enabled", "TRUE")
+        _sub(item, "enabled", "TRUE" if enabled else "FALSE")
         _sub(item, "duration", to_frames(src.duration, src.fps))
         _rate(item, src.fps)
         _sub(item, "start", ev.start)
@@ -111,9 +113,15 @@ def to_xmeml(tl: NleTimeline) -> str:
     video = _sub(media, "video")
     vfmt = _sub(video, "format")
     _video_characteristics(vfmt, tl.fps, tl.width, tl.height)
-    vtrack = _sub(video, "track")
-    for ev in tl.video:
-        clipitem(vtrack, ev, "video", 1)
+    if tl.stacked:  # one track per camera, only the live pieces enabled
+        for pieces in tl.stacked:
+            vtrack = _sub(video, "track")
+            for ev, enabled in pieces:
+                clipitem(vtrack, ev, "video", 1, enabled)
+    else:
+        vtrack = _sub(video, "track")
+        for ev in tl.video:
+            clipitem(vtrack, ev, "video", 1)
 
     audio = _sub(media, "audio")
     _sub(audio, "numOutputChannels", 2)

@@ -82,6 +82,17 @@ def build_edit_plan(
     host_refs = host_refs or {}
     layouts = {c.clip_id: c for c in _cameras(project)}
     cameras = [c for c in _cameras(project) if c.shot is not ShotType.BROLL and c.clip_id in probes]
+    # A clip shown in the cut gets an angle and a track even if it is not an
+    # auto-selected camera (hand-placed B-roll), so every live shot has a source.
+    shown = {s.clip_id for s in cutlist.segments}
+    known = {c.clip_id for c in cameras}
+    for clip in project.clips:
+        if clip.id in shown and clip.id not in known and clip.id in probes:
+            cameras.append(
+                layouts.get(clip.id)
+                or CameraLayout(clip_id=clip.id, shot=ShotType.BROLL, covers=[])
+            )
+            known.add(clip.id)
 
     # Every camera and every clip used for picture or sound becomes a media item.
     media_ids = [c.clip_id for c in cameras]
@@ -259,4 +270,10 @@ def plan_to_timeline(plan: EditPlan) -> NleTimeline:
         },
         warnings=list(plan.warnings),
         markers=[Marker(m.frame, m.note, m.color.value) for m in plan.markers],
+        stacked=[
+            [(Event(p.clip_id, p.start, p.end, _seconds(p)), p.enabled) for p in t.pieces]
+            for t in sorted(plan.video_tracks, key=lambda t: t.index)
+        ]
+        if plan.method is PlanMethod.STACKED_ENABLE
+        else [],
     )

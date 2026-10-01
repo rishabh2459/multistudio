@@ -150,12 +150,17 @@ class ResolveAdapter:
                 if not (tl.AddTrack(kind) if kind == "video" else tl.AddTrack(kind, "stereo")):
                     break
         seq_fps = fps_fraction(plan["sequence"]["fps"])
-        rates = {m["clip_id"]: fps_fraction(m["fps"]) for m in plan["media"]}
+        media = {m["clip_id"]: m for m in plan["media"]}
+        rates = {cid: self._clip_rate(m, items[cid], seq_fps) for cid, m in media.items()}
         start = int(tl.GetStartFrame())
         infos: List[Json] = []
         for op in ops:
-            src_frames = round(Fraction(op["end"] - op["start"]) * rates[op["clip_id"]] / seq_fps)
-            first = int(op["source_in_frame"])
+            m, rate = media[op["clip_id"]], rates[op["clip_id"]]
+            src_frames = round(Fraction(op["end"] - op["start"]) * rate / seq_fps)
+            if m["width"] > 0:
+                first = int(op["source_in_frame"])  # already at the clip's own rate
+            else:  # sound-only: the plan counts 100 "fps"; Resolve uses the clip's rate
+                first = round(Fraction(int(op["source_in_sample"]), int(m["sample_rate"])) * rate)
             infos.append(
                 {
                     "mediaPoolItem": items[op["clip_id"]],
@@ -170,7 +175,9 @@ class ResolveAdapter:
         warnings: List[str] = []
         if len(placed) != len(infos):
             warnings.append(f"Resolve placed {len(placed)} of {len(infos)} clips")
-        if method == "stacked_enable":
+        if method == "stacked_enable" and len(placed) != len(infos):
+            warnings.append("Not disabling cameras: Resolve skipped clips, check the tracks.")
+        elif method == "stacked_enable":
             for op, item in zip(ops, placed):
                 if op["kind"] == "video" and not op["enabled"]:
                     if hasattr(item, "SetClipEnabled"):
@@ -185,6 +192,17 @@ class ResolveAdapter:
             "markers": 0,
             "warnings": warnings,
         }
+
+    @staticmethod
+    def _clip_rate(media: Json, item: Any, seq_fps: Fraction) -> Fraction:
+        """Frame rate Resolve counts this clip's source frames in."""
+        if media["width"] > 0:
+            return fps_fraction(media["fps"])
+        try:
+            rate = parse_fps(item.GetClipProperty("FPS"))
+            return Fraction(int(rate["num"]), int(rate["den"]))
+        except (ValueError, TypeError, ZeroDivisionError, AttributeError, IndexError):
+            return seq_fps  # audio files usually take the project rate
 
     def import_xml(self, path: str, plan: Json) -> Json:
         project = self.project()

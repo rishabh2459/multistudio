@@ -5,6 +5,7 @@ export -> feedback. Needs ffmpeg."""
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -13,6 +14,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from multicam_api.app import create_app
+from multicam_api.config import Settings
 from multicam_engine.editplan import EditPlan, PlanMethod
 
 from .conftest import Recording, wait
@@ -288,9 +291,57 @@ def test_error_codes(api: TestClient, recording: Recording, tmp_path: Path) -> N
     )
 
 
-def test_plugin_origins_allowed(api: TestClient) -> None:
-    resp = api.options(
-        f"{P}/handshake",
-        headers={"Origin": "null", "Access-Control-Request-Method": "GET"},
+def test_plugin_origins_only_with_a_token(api: TestClient, settings: Settings) -> None:
+    preflight = {"Origin": "null", "Access-Control-Request-Method": "GET"}
+    # no token: a sandboxed page (origin "null") must not get access
+    open_resp = api.options(f"{P}/handshake", headers=preflight)
+    assert "access-control-allow-origin" not in open_resp.headers
+    with TestClient(create_app(dataclasses.replace(settings, token="t0k"))) as secured:
+        resp = secured.options(f"{P}/handshake", headers=preflight)
+        assert resp.headers.get("access-control-allow-origin") == "null"
+        assert secured.get(f"{P}/handshake").status_code == 401
+        assert secured.get(f"{P}/handshake", headers={"X-Multicam-Token": "t0k"}).status_code == 200
+
+
+def test_host_offsets_are_dropped_when_already_synced_turns_off(
+    api: TestClient, recording: Recording
+) -> None:
+    # The host claims cam2 is 3 s early (wrong): those offsets are used as they are...
+    wrong = _clips(recording, cam2={"in_frame": 90}, wide={"record_start_frame": 15})
+    seq = {"fps": {"num": 30, "den": 1}, "width": 1280, "height": 720}
+    session = _create(
+        api, recording, host_sequence_id="seq-flip", already_synced=True, clips=wrong, sequence=seq
     )
-    assert resp.headers.get("access-control-allow-origin") == "null"
+    _setup_roles(api, session)
+    job = wait(
+        api, api.post(f"{P}/sessions/{session['id']}/run", json={"vad": "energy"}).json()["job_id"]
+    )
+    assert job["result"]["sync"]["skipped"]
+    project = f"/api/projects/{session['project_id']}"
+    cam2 = next(c for c in api.get(project).json()["clips"] if c["name"] == "cam2.mp4")
+    assert cam2["sync"]["offset_samples"] / 48000 == pytest.approx(3.0, abs=0.001)
+
+    # ...until the clips arrive as not synced: audio sync runs again (no stale cache).
+    again = _create(
+        api, recording, host_sequence_id="seq-flip", clips=_clips(recording), sequence=seq
+    )
+    assert again["id"] == session["id"] and not any(c["synced"] for c in again["clips"])
+    job = wait(
+        api, api.post(f"{P}/sessions/{session['id']}/run", json={"vad": "energy"}).json()["job_id"]
+    )
+    assert job["status"] == "succeeded", job
+    assert not job["result"]["sync"].get("skipped")
+    cam2 = next(c for c in api.get(project).json()["clips"] if c["name"] == "cam2.mp4")
+    assert cam2["sync"]["offset_samples"] / 48000 == pytest.approx(1.0, abs=0.005)
+
+
+def test_same_files_in_another_order_reuse_the_session(
+    api: TestClient, recording: Recording
+) -> None:
+    first = _create(api, recording, host_sequence_id="seq-order")
+    clips = list(reversed(_clips(recording)))
+    second = _create(api, recording, host_sequence_id="seq-order", clips=clips)
+    assert second["id"] == first["id"] and second["reused"]
+    assert second["project_id"] == first["project_id"]
+    refs = {Path(c["path"]).name: c["host_ref"] for c in second["clips"]}
+    assert refs == {"cam1.mp4": "pp:cam1", "cam2.mp4": "pp:cam2", "wide.mp4": "pp:wide"}

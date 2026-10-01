@@ -187,17 +187,27 @@ export class ResolveWiAdapter implements HostAdapter {
       }
     }
     const seq = plan.sequence.fps.num / plan.sequence.fps.den;
-    const rates = new Map(plan.media.map((m) => [m.clip_id, m.fps.num / m.fps.den]));
+    const media = new Map(plan.media.map((m) => [m.clip_id, m]));
+    const rates = new Map<string, number>();
+    for (const m of plan.media) {
+      if (m.width > 0) rates.set(m.clip_id, m.fps.num / m.fps.den);
+      else {
+        // Sound-only: the plan counts 100 "fps"; Resolve counts the clip's own rate.
+        const r = parseFps(String(await items.get(m.clip_id)!.GetClipProperty('FPS')));
+        rates.set(m.clip_id, r.num > 0 && Number.isFinite(r.num / r.den) ? r.num / r.den : seq);
+      }
+    }
     const start = Number(await tl.GetStartFrame());
     const infos: ClipInfo[] = ops.map((op) => {
-      const srcFrames = Math.max(
-        1,
-        Math.round(((op.end - op.start) * rates.get(op.clipId)!) / seq),
-      );
+      const m = media.get(op.clipId)!;
+      const rate = rates.get(op.clipId)!;
+      const srcFrames = Math.max(1, Math.round(((op.end - op.start) * rate) / seq));
+      const first =
+        m.width > 0 ? op.sourceInFrame : Math.round((op.sourceInSample / m.sample_rate) * rate);
       return {
         mediaPoolItem: items.get(op.clipId)!,
-        startFrame: op.sourceInFrame,
-        endFrame: op.sourceInFrame + srcFrames - (END_INCLUSIVE ? 1 : 0),
+        startFrame: first,
+        endFrame: first + srcFrames - (END_INCLUSIVE ? 1 : 0),
         trackIndex: op.track,
         recordFrame: start + op.start,
         mediaType: op.kind === 'video' ? 1 : 2,
@@ -208,8 +218,10 @@ export class ResolveWiAdapter implements HostAdapter {
     const warnings: string[] = [];
     if (placed.length !== infos.length)
       warnings.push(`Resolve placed ${placed.length} of ${infos.length} clips`);
-    if (opts.method === 'stacked_enable') {
-      for (let i = 0; i < Math.min(ops.length, placed.length); i++) {
+    if (opts.method === 'stacked_enable' && placed.length !== infos.length) {
+      warnings.push('Not disabling cameras: Resolve skipped clips, check the tracks.');
+    } else if (opts.method === 'stacked_enable') {
+      for (let i = 0; i < ops.length; i++) {
         const op = ops[i]!;
         const item = placed[i]!;
         if (op.kind !== 'video' || op.enabled) continue;

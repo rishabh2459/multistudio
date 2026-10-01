@@ -426,3 +426,68 @@ def test_window_wiring(
     assert statuses[1].startswith("Plan v"), statuses
     assert statuses[2].startswith('Created timeline "'), statuses
     assert fake.items["Preset"].options[2] == "Dynamic"
+
+
+def _plan_with_mic() -> tuple[dict[str, Any], str]:
+    plan = copy.deepcopy(PLAN)
+    mic_id = "00000000-0000-0000-0000-00000000a1c0"
+    plan["media"].append(
+        {
+            **plan["media"][0],
+            "clip_id": mic_id,
+            "path": "/media/demo/zoom.wav",
+            "name": "zoom.wav",
+            "label": "zoom",
+            "fps": {"num": 100, "den": 1},
+            "width": 0,
+            "height": 0,
+            "angle": None,
+            "video_track": None,
+            "audio_track": len(plan["audio_tracks"]) + 1,
+            "sample_rate": 48000,
+        }
+    )
+    plan["audio_tracks"].append(
+        {
+            "index": len(plan["audio_tracks"]) + 1,
+            "clip_id": mic_id,
+            "gain_db": 0.0,
+            "pieces": [
+                {
+                    "start": 0,
+                    "end": 300,
+                    "clip_id": mic_id,
+                    "source_in_frame": 1000,
+                    "source_in_sample": 480000,
+                    "source_in_ticks": 0,
+                }
+            ],
+        }
+    )
+    return plan, mic_id
+
+
+def test_sound_only_mic_frames_follow_resolve_clip_rate() -> None:
+    plan, _ = _plan_with_mic()
+    resolve = fr.podcast("/media/demo/cam1.mp4", "/media/demo/cam2.mp4", "/media/demo/wide.mp4")
+    ResolveAdapter(resolve).apply_plan(plan, "cuts")
+    assert resolve.project is not None
+    mic = next(
+        i for i in resolve.project.pool.appends[0] if i["mediaPoolItem"].path.endswith(".wav")
+    )
+    # 10 s into the file at the clip's rate (project rate 29.97 here), 300 frames long
+    assert mic["startFrame"] == 300 and mic["mediaType"] == 2
+    assert mic["endFrame"] - mic["startFrame"] + 1 == 300
+
+
+def test_stacked_does_not_disable_by_position_when_resolve_skips(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolve = fr.podcast("/media/demo/cam1.mp4", "/media/demo/cam2.mp4", "/media/demo/wide.mp4")
+    assert resolve.project is not None
+    pool = resolve.project.pool
+    real = pool.AppendToTimeline
+    monkeypatch.setattr(pool, "AppendToTimeline", lambda infos: real(infos)[1:])  # one skipped
+    result = ResolveAdapter(resolve).apply_plan(PLAN, "stacked_enable")
+    assert any("Not disabling" in w for w in result["warnings"])
+    assert all(i.enabled for t in result["timeline"].tracks["video"] for i in t)

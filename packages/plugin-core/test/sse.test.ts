@@ -16,4 +16,11 @@ describe('SseParser', () => {
     const p = new SseParser();
     expect(p.push('data: one\ndata: two\n\n')).toEqual([{ event: 'message', data: 'one\ntwo' }]);
   });
+
+  it('keeps a CRLF split across chunks as one line end', () => {
+    const p = new SseParser();
+    expect(p.push('event: plan_ready\r')).toEqual([]);
+    expect(p.push('\ndata: {"cuts":1}\r\n\r')).toEqual([]);
+    expect(p.push('\n')).toEqual([{ event: 'plan_ready', data: '{"cuts":1}' }]);
+  });
 });

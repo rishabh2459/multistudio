@@ -156,3 +156,30 @@ def test_write_nle_refuses_multicam_without_a_plan(setup: Setup) -> None:
     project, cut, probes = setup
     with pytest.raises(ValueError, match="EditPlan"):
         write_nle(build_nle_timeline(project, cut, probes), NleFormat.FCPXML_MULTICAM)
+
+
+def test_hand_placed_broll_gets_an_angle_and_a_live_track(setup: Setup) -> None:
+    from multicam_engine.models.cutlist import Segment
+    from multicam_engine.models.project import Clip, ClipRole
+
+    project, cut, probes = setup
+    host = project.clips[0]
+    broll = Clip(path="/rec/broll.mp4", role=ClipRole.BROLL)
+    broll.sync = host.sync
+    project = project.model_copy(update={"clips": [*project.clips, broll]})
+    probes = {**probes, broll.id: probes[host.id]}
+    s0, s1, s2 = cut.segments
+    segs = [
+        s0,
+        s1.model_copy(update={"end_frame": 900}),
+        Segment(clip_id=broll.id, start_frame=900, end_frame=1200),
+        s2.model_copy(update={"start_frame": 1200}),
+    ]
+    cut = cut.model_copy(update={"segments": segs})
+    plan = build_edit_plan(project, cut, probes, method=PlanMethod.MULTICAM)
+    media = plan.media_by_id()[broll.id]
+    assert media.angle == 4 and media.video_track == 4
+    live = sorted((p.start, p.clip_id) for t in plan.video_tracks for p in t.pieces if p.enabled)
+    assert live == [(e.start, e.clip_id) for e in plan.video_events]  # no hole at 900-1200
+    root = _xml(plan)  # no KeyError
+    assert any(a.get("name") == "broll" for a in root.iter("mc-angle"))

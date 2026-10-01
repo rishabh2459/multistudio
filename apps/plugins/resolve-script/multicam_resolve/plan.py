@@ -85,6 +85,7 @@ def placements(plan: Json, method: str) -> List[Json]:
             "start": p["start"],
             "end": p["end"],
             "source_in_frame": p["source_in_frame"],
+            "source_in_sample": p["source_in_sample"],
             "enabled": enabled,
         }
 

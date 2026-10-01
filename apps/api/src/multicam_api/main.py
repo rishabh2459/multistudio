@@ -51,7 +51,12 @@ HOST = "127.0.0.1"  # never listen on the network
 
 def bind_socket(port: int) -> socket.socket:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if sys.platform == "win32":
+        # SO_REUSEADDR on Windows lets two processes share a listening port; the
+        # exclusive option makes a taken port fail, so we fall back to another.
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((HOST, port))
     sock.set_inheritable(True)
     return sock

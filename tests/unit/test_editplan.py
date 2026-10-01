@@ -205,3 +205,24 @@ def test_sound_only_mic_is_audio_only_everywhere(setup: Setup) -> None:
     assert files[0].find("media/audio") is not None
     edl = write_nle(tl, NleFormat.EDL)
     assert "zoom h6" not in edl  # EDLs list the picture cut only
+
+
+def test_xml_fallback_keeps_the_stacked_tracks(setup: Setup) -> None:
+    stacked = _plan(setup)
+    assert stacked.method is PlanMethod.STACKED_ENABLE
+    off = sum(1 for t in stacked.video_tracks for p in t.pieces if not p.enabled)
+    assert off > 0
+    xm = ET.fromstring(write_nle(plan_to_timeline(stacked), NleFormat.XMEML).split("\n", 2)[2])
+    tracks = xm.findall("sequence/media/video/track")
+    assert len(tracks) == 3
+    assert [c.findtext("enabled") for t in tracks for c in t.findall("clipitem")].count(
+        "FALSE"
+    ) == off
+    fcp = ET.fromstring(write_nle(plan_to_timeline(stacked), NleFormat.FCPXML).split("\n", 2)[2])
+    video = [c for c in fcp.iter("asset-clip") if c.get("srcEnable") == "video"]
+    assert {c.get("lane") for c in video} == {"1", "2", "3"}
+    assert sum(1 for c in video if c.get("enabled") == "0") == off
+
+    cuts = _plan(setup, method=PlanMethod.CUTS)
+    xm = ET.fromstring(write_nle(plan_to_timeline(cuts), NleFormat.XMEML).split("\n", 2)[2])
+    assert len(xm.findall("sequence/media/video/track")) == 1

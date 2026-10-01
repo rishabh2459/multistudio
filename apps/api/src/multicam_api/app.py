@@ -145,8 +145,9 @@ def create_app(settings: Settings | None = None, queue: JobQueue | None = None) 
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
         # NLE plugin panels load from file:// (Resolve Workflow Integration, Electron)
-        # and send "null" or a file/app origin. Every call still needs the token.
-        allow_origin_regex=PLUGIN_ORIGINS,
+        # and send "null" or a file/app origin. Only with a token: without one, any
+        # sandboxed web page (origin "null") could use the API.
+        allow_origin_regex=PLUGIN_ORIGINS if settings.token else None,
         allow_methods=["*"],
         allow_headers=["*"],
     )

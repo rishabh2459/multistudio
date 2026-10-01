@@ -88,6 +88,9 @@ class NleTimeline:
     audio: dict[UUID, list[Event]]  # one track per camera, in source order
     warnings: list[str] = field(default_factory=list)
     markers: list[Marker] = field(default_factory=list)
+    #: Optional "stacked" layout (one video track per camera, the non-live pieces
+    #: disabled). When set, the XML writers use it instead of the single cut track.
+    stacked: list[list[tuple[Event, bool]]] = field(default_factory=list)
 
     def source_out(self, event: Event) -> Fraction:
         return event.source_in + Fraction(event.frames) / self.fps

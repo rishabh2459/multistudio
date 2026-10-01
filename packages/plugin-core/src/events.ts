@@ -27,8 +27,14 @@ export class SseParser {
   private event = 'message';
   private data: string[] = [];
 
+  private pendingCr = false;
+
   push(chunk: string): { event: string; data: string }[] {
-    this.buffer += chunk.replace(/\r\n?/g, '\n');
+    // A CRLF split across chunks must not count as two line ends.
+    let text = (this.pendingCr ? '\r' : '') + chunk;
+    this.pendingCr = text.endsWith('\r');
+    if (this.pendingCr) text = text.slice(0, -1);
+    this.buffer += text.replace(/\r\n?/g, '\n');
     const out: { event: string; data: string }[] = [];
     let nl: number;
     while ((nl = this.buffer.indexOf('\n')) >= 0) {

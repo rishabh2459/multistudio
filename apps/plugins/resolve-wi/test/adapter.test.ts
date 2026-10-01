@@ -102,6 +102,65 @@ describe('ResolveWiAdapter', () => {
   });
 });
 
+describe('Resolve frame math', () => {
+  it('sound-only mics: source frames from the sample position at the clip rate', async () => {
+    const micId = '00000000-0000-0000-0000-00000000a1c0';
+    const p: EditPlan = structuredClone(plan);
+    p.media.push({
+      ...p.media[0]!,
+      clip_id: micId,
+      path: '/media/demo/zoom.wav',
+      name: 'zoom.wav',
+      label: 'zoom',
+      fps: { num: 100, den: 1 },
+      width: 0,
+      height: 0,
+      angle: null,
+      video_track: null,
+      audio_track: p.audio_tracks.length + 1,
+      sample_rate: 48000,
+    });
+    p.audio_tracks.push({
+      index: p.audio_tracks.length + 1,
+      clip_id: micId,
+      gain_db: 0,
+      pieces: [
+        {
+          start: 0,
+          end: 300,
+          clip_id: micId,
+          source_in_frame: 1000,
+          source_in_sample: 480000,
+          source_in_ticks: 0,
+        },
+      ],
+    });
+    const project = podcast(demo);
+    await new ResolveWiAdapter(fakeResolve(project)).applyPlan(p, { method: 'cuts' });
+    const mic = project.appends[0]!.find((i) =>
+      (i.mediaPoolItem as unknown as { path: string }).path.endsWith('.wav'),
+    )!;
+    expect([mic.startFrame, mic.endFrame - mic.startFrame + 1, mic.mediaType]).toEqual([
+      300, 300, 2,
+    ]);
+  });
+
+  it('does not disable by position when Resolve skipped a clip', async () => {
+    const project = podcast(demo);
+    const real = project.GetMediaPool.bind(project);
+    project.GetMediaPool = async () => {
+      const pool = await real();
+      const append = pool.AppendToTimeline.bind(pool);
+      return { ...pool, AppendToTimeline: async (infos) => ((await append(infos)) ?? []).slice(1) };
+    };
+    const r = await new ResolveWiAdapter(fakeResolve(project)).applyPlan(plan, {
+      method: 'stacked_enable',
+    });
+    expect(r.warnings.some((w) => w.includes('Not disabling'))).toBe(true);
+    expect(project.current!.tracks.video.flat().every((i) => i.enabled)).toBe(true);
+  });
+});
+
 describe('IPC bridge', () => {
   it('forwards whitelisted calls and keeps error codes', async () => {
     const project = new FakeProject();
