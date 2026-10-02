@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 import pytest
-from PIL import Image
 
+from multicam_engine.media.ffmpeg import find_tool
 from multicam_engine.media.probe import probe
 from multicam_engine.models import CutList, OutputSettings, Project, Segment
 from multicam_engine.models.project import Clip
@@ -31,9 +31,17 @@ W, H, SECONDS = 1280, 720, 8
 VERTICAL = OutputPreset("vtest", "360x640 test output", 360, 640, "h264", 3000, 96)
 
 
+FACE_SIZE = 256  # astronaut.jpg is 256 x 256
+
+
 def _face_image() -> npt.NDArray[np.uint8]:
-    rgb = np.array(Image.open(DATA / "astronaut.jpg").convert("RGB"))
-    return rgb[:, :, ::-1].copy()  # BGR
+    """The portrait as BGR pixels, decoded with ffmpeg (no imaging library needed)."""
+    raw = subprocess.run(
+        [find_tool("ffmpeg"), "-v", "error", "-i", str(DATA / "astronaut.jpg"),
+         "-vf", f"scale={FACE_SIZE}:{FACE_SIZE}", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"],
+        check=True, capture_output=True,
+    ).stdout  # fmt: skip
+    return np.frombuffer(raw, np.uint8).reshape(FACE_SIZE, FACE_SIZE, 3).copy()
 
 
 def face_x(frame: int) -> int:

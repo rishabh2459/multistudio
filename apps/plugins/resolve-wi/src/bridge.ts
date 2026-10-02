@@ -17,8 +17,7 @@ import {
 } from '@multicam/plugin-core';
 
 export type Envelope<T = unknown> =
-  | { ok: true; value: T }
-  | { ok: false; error: { code: string; message: string; hint: string } };
+  { ok: true; value: T } | { ok: false; error: { code: string; message: string; hint: string } };
 export type Invoke = (
   target: 'host' | 'engine',
   method: string,
@@ -87,6 +86,7 @@ export class BridgeAdapter implements HostAdapter {
   }
   applyPlan(plan: EditPlan, opts: ApplyOptions): Promise<ApplyResult> {
     // Functions cannot cross IPC (structured clone): send the plain options only.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { onProgress: _progress, ...plain } = opts;
     return call(this.invoke, 'host', 'applyPlan', [plan, plain]);
   }

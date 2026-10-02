@@ -172,6 +172,8 @@ async function errorFrom(res: Response): Promise<PluginError> {
     return new PluginError(b.code as ErrorCode, b.message ?? b.code, b.hint ?? '', res.status);
   }
   const detail =
-    body && typeof body === 'object' && 'detail' in body ? String((body as any).detail) : '';
+    body && typeof body === 'object' && 'detail' in body
+      ? String((body as { detail: unknown }).detail)
+      : '';
   return new PluginError('host_error', detail || `engine answered ${res.status}`, '', res.status);
 }

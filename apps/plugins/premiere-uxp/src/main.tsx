@@ -11,6 +11,8 @@ import { PremiereEngineHost, fileUrl } from './engine-host';
 import type { PremierePro, UxpHost } from './ppro';
 import { spectrumPrimitives } from './spectrum';
 
+// UXP's require returns untyped host modules.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const require: (name: string) => any;
 
 function uxpHost(): UxpHost {

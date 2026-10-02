@@ -26,7 +26,7 @@ export interface SliderProps extends FieldProps<number> {
   step: number;
   format?: (v: number) => string;
 }
-export interface CheckboxProps extends FieldProps<boolean> {}
+export type CheckboxProps = FieldProps<boolean>;
 export interface ProgressProps {
   value: number; // 0..1
   label: string;
