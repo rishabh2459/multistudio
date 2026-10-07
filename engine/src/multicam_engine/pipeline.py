@@ -12,6 +12,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -121,6 +122,10 @@ class Analysis:
     warnings: list[str] = field(default_factory=list)
     #: Channel of each mic (-1 = all channels mixed); empty for old analyses.
     mic_channels: list[int] = field(default_factory=list)
+    #: Loudness (dBFS) of each mic on the reference timeline, one row per speaker
+    #: (activity row order), ``activity.frame_rate`` frames per second. Used by the
+    #: jump-cut editor's dB mode; None for analyses saved before it existed.
+    energy_db: FloatArrayT | None = field(default=None, compare=False)
 
     @property
     def mic_keys(self) -> list[tuple[UUID, int | None]]:
@@ -133,6 +138,9 @@ class Analysis:
     def save(self, path: Path) -> None:
         """Store as ``.npz`` so a new preset can re-cut without re-analysing."""
         a = self.activity
+        extra: dict[str, Any] = {}
+        if self.energy_db is not None:
+            extra["energy_db"] = self.energy_db.astype(np.float32)
         with path.open("wb") as fh:
             np.savez_compressed(
                 fh,
@@ -147,6 +155,7 @@ class Analysis:
                 frame_rate=np.array(a.frame_rate),
                 vad_backend=np.array(self.vad_backend),
                 warnings=np.array(self.warnings, dtype=str),
+                **extra,
             )
 
     @classmethod
@@ -162,12 +171,14 @@ class Analysis:
             channels = (
                 [int(c) for c in data["mic_channels"]] if "mic_channels" in data.files else []
             )
+            energy = data["energy_db"].astype(np.float64) if "energy_db" in data.files else None
             return cls(
                 activity=activity,
                 speaker_clip_ids=[UUID(str(c)) for c in data["speaker_clip_ids"]],
                 vad_backend=str(data["vad_backend"]),
                 warnings=[str(w) for w in data["warnings"]],
                 mic_channels=channels,
+                energy_db=energy,
             )
 
 
@@ -271,6 +282,7 @@ def analyze_project(
         vad.name,
         warnings,
         mic_channels=[-1 if ch is None else ch for _, ch in mics],
+        energy_db=np.vstack(energies) if energies else None,
     )
 
 

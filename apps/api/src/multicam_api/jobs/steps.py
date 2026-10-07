@@ -26,6 +26,7 @@ from multicam_api.schemas import (
     AutoParams,
     DecideParams,
     JobKind,
+    JumpCutParams,
     ReframeParams,
     RenderParams,
 )
@@ -45,6 +46,8 @@ from multicam_api.services.projects import (
     switch_params,
 )
 from multicam_engine.decide.presets import PUNCH_FOR_PRESET, params_for
+from multicam_engine.jumpcut import JumpCutParams as EngineJumpCut
+from multicam_engine.jumpcut import jump_cut_cutlist
 from multicam_engine.layout import LayoutError, resolve_layout
 from multicam_engine.media.probe import ProbeError, probe
 from multicam_engine.models.cutlist import AudioConfig, AudioMode, CutList
@@ -525,6 +528,94 @@ def reframe(ctx: JobContext, params: ReframeParams) -> Result:
         return {**summary, "version": saved.version, "cached": False}
 
 
+# ------------------------------------------------------------------ jump cuts
+def _fresh_analysis(ctx: JobContext, *, need_energy: bool) -> Analysis:
+    """The project's analysis (re-run when stale; when mic levels are needed and the
+    stored analysis predates them, measure again and overwrite it)."""
+    with ctx.db.session() as s:
+        row = _project(s, ctx)
+        analyzed = _cache_get(s, ctx.project_id, "analyze")
+        vad = str(analyzed.result.get("vad", "auto")) if analyzed else "auto"
+        valid = analyzed is not None and analyzed.input_hash == _analyze_hash(row, vad)
+    if not valid:
+        analyze(ctx, AnalyzeParams.model_validate({"vad": vad}))
+    with ctx.db.session() as s:
+        row = _project(s, ctx)
+        analyzed = _cache_get(s, ctx.project_id, "analyze")
+        assert analyzed is not None
+        project = project_to_engine(row)
+    artifact = ctx.storage.artifact_path(ctx.project_id, str(analyzed.result["artifact"]))
+    analysis = Analysis.load(artifact)
+    if need_energy and analysis.energy_db is None:
+        ctx.report("jumpcut", 0.05, "measuring mic levels", force=True)
+        _require_synced(project)
+        analysis = analyze_project(
+            project,
+            vad=AnalyzeParams.model_validate({"vad": vad}).vad,
+            cache_dir=ctx.settings.audio_cache_dir,
+            on_progress=ctx.progress_callback("jumpcut"),
+        )
+        analysis.save(artifact)
+    return analysis
+
+
+def run_jumpcut(ctx: JobContext) -> Result:
+    check_files(ctx)
+    return jumpcut(ctx, JumpCutParams.model_validate(ctx.params))
+
+
+def jumpcut(ctx: JobContext, params: JumpCutParams) -> Result:
+    """Pauses -> silence removals on the latest cutlist (a new version)."""
+    with ctx.db.session() as s:
+        latest = latest_cutlist(s, str(ctx.project_id))
+        if latest is None:
+            raise JobFailedError("no cutlist yet: run the auto edit first")
+        cutlist = CutList.model_validate(latest.data)
+    analysis = _fresh_analysis(ctx, need_energy=params.mode == "db")
+    rows = {cid: i for i, cid in enumerate(analysis.speaker_clip_ids)}
+    unknown = [str(c) for c in params.mic_threshold_db if c not in rows]
+    if unknown:
+        raise JobFailedError(f"not a mic of this project: {', '.join(unknown)}")
+    engine_params = EngineJumpCut(
+        mode=params.mode,
+        threshold_db=params.threshold_db,
+        mic_threshold_db={rows[c]: v for c, v in params.mic_threshold_db.items()},
+        min_silence_s=params.min_silence_s,
+        pad_s=params.pad_s,
+        min_removal_s=params.min_removal_s,
+    )
+    ctx.report("jumpcut", 0.8, "finding pauses", force=True)
+    try:
+        cut = jump_cut_cutlist(
+            cutlist,
+            engine_params,
+            rate=analysis.activity.frame_rate,
+            energy_db=analysis.energy_db,
+            labels=analysis.activity.labels,
+            approved=params.approve,
+        )
+    except ValueError as exc:
+        raise JobFailedError(str(exc)) from exc
+    silences = [r for r in cut.removals if r.kind.value == "silence"]
+    frames = sum(r.duration_frames for r in silences)
+    fps = cut.fps.to_fraction()
+    if not silences:
+        ctx.warnings.append(
+            "no pauses found: lower the dB cutoff, shorten the shortest pause, or use speech "
+            "detection"
+            if params.mode == "db"
+            else "no pauses found: shorten the shortest pause"
+        )
+    with ctx.db.transaction() as s:
+        saved = add_cutlist_version(s, str(ctx.project_id), cut, source="jumpcut")
+        return {
+            "version": saved.version,
+            "removals": len(silences),
+            "removed_s": round(float(frames / fps), 2),
+            "mode": params.mode,
+        }
+
+
 # ------------------------------------------------------------------ proxy
 def run_proxy(ctx: JobContext) -> Result:
     """Preview copies (540p, short GOP) of every clip for the timeline editor.
@@ -555,4 +646,5 @@ STEPS: dict[JobKind, Callable[[JobContext], Result]] = {
     JobKind.RENDER: run_render,
     JobKind.PROXY: run_proxy,
     JobKind.REFRAME: run_reframe,
+    JobKind.JUMPCUT: run_jumpcut,
 }

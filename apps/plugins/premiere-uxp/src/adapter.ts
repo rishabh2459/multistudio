@@ -5,8 +5,9 @@
  *   media on audio tracks = separate mics), with their sequence positions so the
  *   engine can skip audio sync when the sequence is already synced.
  * - apply: XML import (xmeml) into a new sequence = one undo step (PL4 default).
- *   Native apply through SequenceEditor is behind `nativeApply` (beta, PL5) until
- *   the PL4 spike confirms the DOM in Premiere.
+ *   Stacked enable/disable always comes in by XML (clips arrive already disabled:
+ *   one undo step); natively it would take two transactions. Native `cuts` through
+ *   SequenceEditor is behind `nativeApply` (beta, PL5) until the PL4 spike passes.
  * - markers: low-confidence cuts as Comment markers.
  */
 import {
@@ -19,13 +20,17 @@ import {
   type HostAdapter,
   type HostCaps,
   type PlanMarker,
+  type PlanMethod,
   type SessionClipIn,
   type SessionCreate,
+  type SocialClipOut,
+  type SocialImportOptions,
+  type SocialImportResult,
 } from '@multicam/plugin-core';
 
 import type {
   ClipProjectItem,
-  ClipTrackItem,
+  FolderItem,
   PremierePro,
   Project,
   ProjectItem,
@@ -34,6 +39,11 @@ import type {
 } from './ppro';
 
 export const TICKS_PER_SECOND = 254_016_000_000n;
+/** Everything the panel imports lands in this bin. */
+export const BIN_ROOT = 'Multicam Studio';
+export const SOCIAL_BIN = 'Social';
+/** Name suffix of the multicam source sequence the engine writes (xmeml_multicam.py). */
+export const MULTICAM_SOURCE_SUFFIX = ' - Multicam Source';
 
 export interface PremiereOptions {
   /** Build the edit with SequenceEditor actions instead of XML import (beta). */
@@ -71,6 +81,8 @@ export class PremiereAdapter implements HostAdapter {
     return {
       multicam: false, // angle switching is not in the UXP DOM yet: XML (K1)
       enableDisable: true,
+      // Disabling needs the clips to exist first (2nd transaction): stacked = XML.
+      stackedOneUndo: false,
       keyframes: false, // reframe keyframes arrive in PL5
       markers: true,
       captions: false,
@@ -143,6 +155,8 @@ export class PremiereAdapter implements HostAdapter {
     await readTrack('audio', await seq.getAudioTrackCount(), (i) => seq.getAudioTrack(i));
 
     const list = [...clips.values()];
+    // Made now (its own undo step) so a later apply stays ONE undo step.
+    await this.ensureBin(project, BIN_ROOT);
     if (!list.some((c) => c.kind === 'video')) {
       throw new PluginError(
         'setup_required',
@@ -165,26 +179,159 @@ export class PremiereAdapter implements HostAdapter {
   }
 
   // ---------------------------------------------------------------- apply
-  async importXml(path: string, plan: EditPlan): Promise<ApplyResult> {
+  async importXml(path: string, plan: EditPlan, method?: PlanMethod): Promise<ApplyResult> {
     const project = await this.project();
     const before = new Set((await project.getSequences()).map((s) => s.guid.toString()));
-    const bin = await project.getInsertionBin();
+    const bin = await this.ensureBin(project, BIN_ROOT);
     const ok = await project.importFiles([path], true, bin, false);
     if (!ok) throw new PluginError('host_error', `Premiere could not import ${path}`);
     const created = (await project.getSequences()).filter((s) => !before.has(s.guid.toString()));
-    const seq = created.find((s) => s.name === plan.sequence.name) ?? created.at(-1);
+    const seq = created.find((s) => s.name === plan.sequence.name) ?? created.at(0);
     if (!seq) throw new PluginError('host_error', 'the imported XML created no sequence');
     await project.openSequence(seq);
+    const warnings: string[] = [];
+    if (method === 'multicam') {
+      const source = created.find((s) => s.name.endsWith(MULTICAM_SOURCE_SUFFIX));
+      warnings.push(
+        'Premiere has no plugin API for multicam sequences (Adobe), so the edit is on ' +
+          'stacked tracks (same cuts, enable/disable).',
+        source
+          ? `"${source.name}" holds every camera in sync: nest it and use Multi-Camera > ` +
+              'Enable to switch angles by hand.'
+          : 'The multicam source sequence was not found after import.',
+      );
+    }
     return {
       sequenceId: seq.guid.toString(),
       sequenceName: seq.name,
       via: 'xml',
       markers: plan.markers.length, // the XML carries them
-      warnings: [],
+      warnings,
     };
   }
 
+  /** A bin under `parent` (default: the project root), created once, found by name after. */
+  private async ensureBin(
+    project: Project,
+    name: string,
+    parent?: FolderItem,
+  ): Promise<ProjectItem> {
+    const folder = parent ?? (await project.getRootItem());
+    const find = async () =>
+      ((await folder.getItems()) ?? []).find(
+        (i) => i.name === name && typeof (i as FolderItem).getItems === 'function',
+      );
+    const existing = await find();
+    if (existing) return existing;
+    if (typeof folder.createBinAction !== 'function') return project.getInsertionBin();
+    project.lockedAccess(() => {
+      project.executeTransaction((compound) => {
+        compound.addAction(folder.createBinAction!(name, false));
+      }, `Multicam Studio: bin ${name}`);
+    });
+    return (await find()) ?? project.getInsertionBin();
+  }
+
+  private folder(item: ProjectItem): FolderItem {
+    return (this.ppro.FolderItem?.cast(item) ?? item) as FolderItem;
+  }
+
+  // ---------------------------------------------------------------- social clips
+  async readInOut(): Promise<{ inFrame: number; outFrame: number; sequenceName: string } | null> {
+    const project = await this.project();
+    const seq = await project.getActiveSequence();
+    if (!seq?.getInPoint || !seq.getOutPoint) return null;
+    const tpf = BigInt(await seq.getTimebase());
+    const [inT, outT] = await Promise.all([seq.getInPoint(), seq.getOutPoint()]);
+    const inFrame = ticksToFrames(inT.ticks, tpf);
+    const outFrame = ticksToFrames(outT.ticks, tpf);
+    // No marks: Premiere reports the whole sequence (in 0, out = end) or nothing.
+    const end = ticksToFrames((await seq.getEndTime()).ticks, tpf);
+    if (outFrame <= inFrame || (inFrame === 0 && (outFrame === 0 || outFrame >= end))) {
+      return null;
+    }
+    return { inFrame, outFrame, sequenceName: seq.name };
+  }
+
+  async pickFile(purpose: 'picture' | 'preset'): Promise<string | null> {
+    if (!this.uxp.pickFile) return null;
+    return this.uxp.pickFile(
+      purpose === 'preset' ? ['epr'] : ['png', 'jpg', 'jpeg', 'gif', 'webp', 'mov', 'mp4'],
+    );
+  }
+
+  async importSocial(
+    clips: SocialClipOut[],
+    opts: SocialImportOptions = {},
+  ): Promise<SocialImportResult> {
+    const project = await this.project();
+    const paths = clips.map((c) => c.xml_path).filter((p): p is string => !!p);
+    if (paths.length !== clips.length) {
+      throw new PluginError('host_error', 'the engine wrote no XML for some clips');
+    }
+    const root = this.folder(await this.ensureBin(project, BIN_ROOT));
+    const bin = await this.ensureBin(project, SOCIAL_BIN, root);
+    const before = new Set((await project.getSequences()).map((s) => s.guid.toString()));
+    // One import call for every clip: one step in the undo history.
+    if (!(await project.importFiles(paths, true, bin, false))) {
+      throw new PluginError('host_error', 'Premiere could not import the social clips');
+    }
+    const created = (await project.getSequences()).filter((s) => !before.has(s.guid.toString()));
+    const warnings: string[] = [];
+    const sequences: SocialImportResult['sequences'] = [];
+    for (const clip of clips) {
+      const seq = created.find((s) => s.name === clip.name);
+      if (!seq) {
+        warnings.push(`"${clip.name}" did not appear after the import`);
+        continue;
+      }
+      sequences.push({ name: seq.name, aspect: clip.aspect, sequenceId: seq.guid.toString() });
+    }
+    let queued = 0;
+    if (opts.queueRenders && sequences.length) {
+      const encoder = this.ppro.EncoderManager?.getManager();
+      const type = this.ppro.Constants.ExportType?.QUEUE_TO_AME;
+      if (!encoder || type === undefined) {
+        warnings.push(
+          'This Premiere cannot queue renders from a plugin: export the clips by hand.',
+        );
+      } else if (!encoder.isAMEInstalled) {
+        warnings.push('Adobe Media Encoder is not installed: renders were not queued.');
+      } else {
+        for (const s of sequences) {
+          const seq = created.find((c) => c.guid.toString() === s.sequenceId)!;
+          const clip = clips.find((c) => c.name === s.name)!;
+          const ok = await encoder.exportSequence(
+            seq,
+            type,
+            clip.render_path,
+            opts.presetPath ?? '',
+            true,
+          );
+          if (ok) queued += 1;
+          else warnings.push(`could not queue "${s.name}"`);
+        }
+        if (queued && opts.startQueue && encoder.startBatchEncode) await encoder.startBatchEncode();
+      }
+    }
+    if (sequences[0]) {
+      const first = created.find((c) => c.guid.toString() === sequences[0]!.sequenceId);
+      if (first) await project.openSequence(first);
+    }
+    return { sequences, bin: `${BIN_ROOT}/${SOCIAL_BIN}`, queued, warnings };
+  }
+
   async applyPlan(plan: EditPlan, opts: ApplyOptions): Promise<ApplyResult> {
+    if (opts.method !== 'cuts') {
+      // Premiere can only disable a clip after it exists, i.e. in a second
+      // transaction = a second undo step. XML import brings the clips in already
+      // enabled/disabled in ONE step, so stacked (and multicam) always go that way.
+      throw new PluginError(
+        'not_available',
+        `native "${opts.method}" would need more than one undo step in Premiere`,
+        'the panel imports the edit as XML instead (one undo step)',
+      );
+    }
     const project = await this.project();
     const { TickTime } = this.ppro;
     const fps = plan.sequence.fps;
@@ -225,34 +372,6 @@ export class PremiereAdapter implements HostAdapter {
     });
     if (!ok) throw new PluginError('host_error', 'Premiere refused the edit transaction');
 
-    if (opts.method === 'stacked_enable') {
-      opts.onProgress?.(0.7, 'disabling cameras that are not live');
-      const off = new Set(
-        ops.filter((o) => o.kind === 'video' && !o.enabled).map((o) => `${o.track}:${o.start}`),
-      );
-      const tpf = BigInt(frameToTicks(1, fps));
-      const disable: ClipTrackItem[] = [];
-      const count = await seq.getVideoTrackCount();
-      for (let i = 0; i < count; i++) {
-        const track = await seq.getVideoTrack(i);
-        for (const item of track.getTrackItems(this.ppro.Constants.TrackItemType.CLIP, false)) {
-          const start = ticksToFrames((await item.getStartTime()).ticks, tpf);
-          if (off.has(`${i + 1}:${start}`)) disable.push(item);
-        }
-      }
-      if (disable.some((d) => !d.createSetDisabledAction)) {
-        warnings.push(
-          'This Premiere cannot disable clips from a plugin: all cameras stay enabled.',
-        );
-      } else if (disable.length) {
-        project.lockedAccess(() => {
-          project.executeTransaction((compound) => {
-            for (const d of disable) compound.addAction(d.createSetDisabledAction!(true));
-          }, `Multicam Studio: ${plan.sequence.name} (cameras)`);
-        });
-        warnings.push('Native stacked apply uses two undo steps (place, then disable).');
-      }
-    }
     await project.openSequence(seq);
     opts.onProgress?.(1, 'done');
     return {

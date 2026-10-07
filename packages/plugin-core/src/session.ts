@@ -7,11 +7,18 @@
  * One controller per panel. The UI subscribes to state changes; the host adapter
  * is the only host-specific part.
  */
-import type { ApplyResult, HostAdapter, HostCaps } from './adapter';
+import type {
+  ApplyResult,
+  HostAdapter,
+  HostCaps,
+  SocialImportOptions,
+  SocialImportResult,
+} from './adapter';
 import type { ClientOptions, PluginClient } from './client';
 import { connectEngine, startEngine, type EngineHost } from './engine';
 import { DEFAULT_HINTS, PluginError } from './errors';
 import { followRun, type ProgressEvent } from './events';
+import type { JumpCutIn, RemovalsOut, RemovalsPatch, SocialIn, SocialOut } from './extras';
 import { decideApply, type ApplyDecision } from './plan';
 import { defaultRoles } from './setup';
 import type {
@@ -25,14 +32,7 @@ import type {
 } from './types';
 
 export type Phase =
-  | 'idle'
-  | 'connecting'
-  | 'setup'
-  | 'running'
-  | 'review'
-  | 'applying'
-  | 'applied'
-  | 'error';
+  'idle' | 'connecting' | 'setup' | 'running' | 'review' | 'applying' | 'applied' | 'error';
 
 export interface FlowError {
   code: ErrorCode;
@@ -59,7 +59,19 @@ export interface FlowState {
   error: FlowError | null;
   /** Applied versions in this panel (re-apply keeps v7, v8 ...). */
   history: ApplyResult[];
+  /** Pauses found by the jump-cut editor (and which are approved). */
+  removals: RemovalsOut | null;
+  /** Last batch of social clips: what the engine built and what the host imported. */
+  social: (SocialOut & { imported: SocialImportResult }) | null;
+  /** Work in progress that does not leave the current phase (social, removals). */
+  busy: Progress | null;
 }
+
+/** A social-clip request; without in/out the host's In/Out marks are used. */
+export type SocialRequest = Omit<SocialIn, 'in_frame' | 'out_frame'> & {
+  in_frame?: number;
+  out_frame?: number;
+};
 
 const ALLOWED: Record<Phase, Phase[]> = {
   idle: ['connecting'],
@@ -95,6 +107,9 @@ export class AutoEditController {
     applied: null,
     error: null,
     history: [],
+    removals: null,
+    social: null,
+    busy: null,
   };
   private readonly listeners = new Set<Listener>();
   private client: PluginClient | null = null;
@@ -143,6 +158,7 @@ export class AutoEditController {
     } catch (err) {
       const e = PluginError.from(err);
       this.set({
+        busy: null,
         phase: 'error',
         resume: resume === 'connecting' || resume === 'idle' ? 'idle' : backTo(resume),
         error: { code: e.code, message: e.message, hint: e.hint || DEFAULT_HINTS[e.code] || '' },
@@ -194,7 +210,15 @@ export class AutoEditController {
     if (session.reused && session.plan) {
       plan = await client.editPlan(session.id, { host: this.adapter.host });
     }
-    this.set({ phase: plan ? 'review' : 'setup', session, plan, applied: null, decision: null });
+    this.set({
+      phase: plan ? 'review' : 'setup',
+      session,
+      plan,
+      applied: null,
+      decision: null,
+      removals: null,
+      social: null,
+    });
   }
 
   /** Save setup changes (roles, layout, preset, sliders, method). */
@@ -285,7 +309,7 @@ export class AutoEditController {
           plan.cutlist_version,
           decision.method,
         );
-        return this.adapter.importXml(file.path, plan);
+        return this.adapter.importXml(file.path, plan, decision.method);
       };
       if (decision.via === 'xml') {
         result = await viaXml();
@@ -317,6 +341,125 @@ export class AutoEditController {
         progress: null,
         history: [...this.state.history, result],
       });
+    });
+  }
+
+  // ---------------------------------------------------------------- jump cuts
+  /** Find pauses to cut: dB cutoff (AutoPod-style) or speech detection. */
+  findJumpCuts(settings: JumpCutIn = {}): Promise<void> {
+    return this.guard(async () => {
+      const client = this.need();
+      const id = this.needSession().id;
+      this.set({
+        phase: 'running',
+        error: null,
+        progress: { fraction: 0, stage: 'jumpcut', message: 'finding pauses' },
+      });
+      const run = await client.jumpCuts(id, settings);
+      await followRun(client, id, run.job_id, {
+        ...(this.opts.poll !== undefined ? { poll: this.opts.poll } : {}),
+        ...(this.opts.pollMs !== undefined ? { pollMs: this.opts.pollMs } : {}),
+        onEvent: (ev) => {
+          if (ev.type === 'progress') this.set({ progress: toProgress(ev.data) });
+        },
+      });
+      const [session, plan, removals] = await Promise.all([
+        client.getSession(id),
+        client.editPlan(id, { host: this.adapter.host }),
+        client.removals(id),
+      ]);
+      this.set({ phase: 'review', session, plan, removals, progress: null, applied: null });
+    });
+  }
+
+  /** Approve / reject pauses before applying (a new edit version on the engine). */
+  setRemovals(patch: RemovalsPatch): Promise<void> {
+    return this.guard(async () => {
+      const client = this.need();
+      const id = this.needSession().id;
+      this.set({ busy: { fraction: 0.5, stage: 'removals', message: 'saving' } });
+      const removals = await client.updateRemovals(id, patch);
+      const plan = await client.editPlan(id, { host: this.adapter.host });
+      this.set({ removals, plan, busy: null });
+    });
+  }
+
+  /**
+   * Build the edit with the approved pauses taken out of EVERY track at the same
+   * frames (ripple delete, picture and all mics stay in sync) as a new sequence.
+   */
+  applyJumpCuts(opts: { method?: PlanMethod } = {}): Promise<void> {
+    return this.guard(async () => {
+      const client = this.need();
+      const id = this.needSession().id;
+      const removals = this.state.removals;
+      if (!removals || !removals.removals.some((r) => r.approved)) {
+        throw new PluginError(
+          'no_plan',
+          'no pauses approved',
+          'Find pauses first, then approve some.',
+        );
+      }
+      this.caps ??= await this.adapter.capabilities();
+      if (!this.caps.xmlImport) {
+        throw new PluginError('not_available', 'this host cannot import the jump-cut edit');
+      }
+      const method = opts.method ?? this.state.plan?.method ?? 'stacked_enable';
+      this.set({
+        phase: 'applying',
+        error: null,
+        progress: { fraction: 0.2, stage: 'applying', message: 'ripple-deleting pauses' },
+      });
+      const rippled = await client.editPlan(id, { host: this.adapter.host, method, ripple: true });
+      const file = await client.exportFile(
+        id,
+        this.caps.xmlImport,
+        rippled.cutlist_version,
+        method,
+        {
+          ripple: true,
+        },
+      );
+      const result = await this.adapter.importXml(file.path, rippled, method);
+      this.set({
+        phase: 'applied',
+        applied: result,
+        progress: null,
+        history: [...this.state.history, result],
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- social clips
+  /** One sequence per aspect ratio for a range of the edit (default: In/Out marks). */
+  createSocial(req: SocialRequest, opts: SocialImportOptions = {}): Promise<void> {
+    return this.guard(async () => {
+      const client = this.need();
+      const id = this.needSession().id;
+      if (!this.adapter.importSocial) {
+        throw new PluginError('not_available', 'this host cannot import social clips yet');
+      }
+      let { in_frame: inFrame, out_frame: outFrame } = req;
+      if (inFrame === undefined || outFrame === undefined) {
+        const marks = this.adapter.readInOut ? await this.adapter.readInOut() : null;
+        if (!marks) {
+          throw new PluginError(
+            'setup_required',
+            'no clip range',
+            'Mark In and Out on the auto-edit sequence, then create the clips.',
+          );
+        }
+        inFrame = marks.inFrame;
+        outFrame = marks.outFrame;
+      }
+      this.set({
+        busy: { fraction: 0.1, stage: 'social', message: 'building clips' },
+        error: null,
+      });
+      const out = await client.social(id, { ...req, in_frame: inFrame, out_frame: outFrame });
+      this.set({ busy: { fraction: 0.6, stage: 'social', message: 'importing clips' } });
+      const imported = await this.adapter.importSocial(out.clips, opts);
+      this.set({ social: { ...out, imported }, busy: null });
     });
   }
 

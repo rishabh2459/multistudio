@@ -20,6 +20,26 @@ METHODS = [
 ]
 
 
+NO_WIDE = "(no wide camera)"
+
+
+def wide_roles(cameras: List[Any], index: int) -> List[Dict[str, Any]]:
+    """Roles for the video clips: the picked one is the wide shot, the rest speakers.
+    ``index`` 0 = no wide camera. Empty before Connect."""
+    roles = []
+    for i, (clip_id, _name, _was_wide) in enumerate(cameras, start=1):
+        roles.append({"clip_id": clip_id, "role": "wide" if i == index else "speaker"})
+    return roles
+
+
+def current_roles(session: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return [
+        {"clip_id": c["clip_id"], "role": "wide" if c["role"] == "wide" else "speaker"}
+        for c in session.get("clips", [])
+        if c.get("kind") == "video"
+    ]
+
+
 def main(resolve: Any, fusion: Any, bmd: Any) -> None:
     ui = fusion.UIManager
     disp = bmd.UIDispatcher(ui)
@@ -41,6 +61,9 @@ def main(resolve: Any, fusion: Any, bmd: Any) -> None:
                         "WordWrap": True,
                         "MinimumSize": [400, 60],
                     }
+                ),
+                ui.HGroup(
+                    [ui.Label({"Text": "Wide camera", "Weight": 0.25}), ui.ComboBox({"ID": "Wide"})]
                 ),
                 ui.HGroup(
                     [ui.Label({"Text": "Style", "Weight": 0.25}), ui.ComboBox({"ID": "Preset"})]
@@ -65,6 +88,11 @@ def main(resolve: Any, fusion: Any, bmd: Any) -> None:
     items = win.GetItems()
     items["Preset"].AddItems([label for _, label in PRESETS])
     items["Method"].AddItems([label for _, label in METHODS])
+    items["Wide"].AddItems([NO_WIDE])
+    # Video clips of the session (filled after Connect; the timer copies them into
+    # the "Wide camera" list, because UI calls must stay on the UI thread).
+    state["cameras"] = []
+    state["cameras_shown"] = None
 
     def show(text: str) -> None:
         state["status"] = text
@@ -104,9 +132,14 @@ def main(resolve: Any, fusion: Any, bmd: Any) -> None:
 
         def done(session: Dict[str, Any]) -> str:
             names: List[str] = [c["name"] for c in session["clips"]]
+            state["cameras"] = [
+                (c["clip_id"], c["name"], c["role"] == "wide")
+                for c in session["clips"]
+                if c["kind"] == "video"
+            ]
             if flow.plan:
                 return "Reconnected to {}. {}".format(session["name"], summary(flow.plan))
-            return "{}: {} clips ({}). Choose a style, then Auto Edit.".format(
+            return "{}: {} clips ({}). Pick the wide camera and a style, then Auto Edit.".format(
                 session["name"], len(names), ", ".join(names)
             )
 
@@ -116,10 +149,15 @@ def main(resolve: Any, fusion: Any, bmd: Any) -> None:
     def on_run(_: Any) -> None:
         preset = PRESETS[int(items["Preset"].CurrentIndex)][0]
         method = METHODS[int(items["Method"].CurrentIndex)][0]
+        roles = wide_roles(state["cameras"], int(items["Wide"].CurrentIndex))
 
         def work() -> Dict[str, Any]:
+            session = flow.session or {}
+            changed = roles != current_roles(session)
+            if changed:  # who is who changed: the whole edit must be redone
+                flow.plan = None
             recut = flow.plan is not None
-            flow.setup(preset=preset, method=method)
+            flow.setup(preset=preset, method=method, **({"roles": roles} if roles else {}))
             return flow.run(progress, recut=recut)
 
         show("Starting…")
@@ -143,6 +181,13 @@ def main(resolve: Any, fusion: Any, bmd: Any) -> None:
     timer = ui.Timer({"ID": "Tick", "Interval": 300})
 
     def on_tick(_: Any) -> None:
+        cams = state["cameras"]
+        if cams != state["cameras_shown"]:
+            state["cameras_shown"] = list(cams)
+            items["Wide"].Clear()
+            items["Wide"].AddItems([NO_WIDE] + [name for _, name, _ in cams])
+            chosen = [i for i, (_, _, wide) in enumerate(cams, start=1) if wide]
+            items["Wide"].CurrentIndex = chosen[0] if chosen else 0
         if items["Status"].Text != state["status"]:
             items["Status"].Text = state["status"]
         for button in ("Connect", "Start", "Run", "Apply"):

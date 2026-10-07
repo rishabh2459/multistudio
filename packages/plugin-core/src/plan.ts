@@ -59,6 +59,13 @@ export function decideApply(
       ? { via: 'xml', method, reason: 'this host cannot disable clips through its API' }
       : { via: 'native', method: 'cuts', reason: 'no enable/disable: plain cuts instead' };
   }
+  if (method === 'stacked_enable' && caps.stackedOneUndo === false && xml) {
+    return {
+      via: 'xml',
+      method,
+      reason: 'enable/disable in one undo step: XML import (clips arrive already disabled)',
+    };
+  }
   const reframed = plan.video_events.some(
     (e) => !!e.reframe && (e.reframe.scale !== 1 || !!e.reframe.path?.length),
   );

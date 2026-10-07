@@ -195,10 +195,106 @@ def test_full_plugin_flow(api: TestClient, recording: Recording) -> None:
     assert fb.json()["cuts_kept"] == fb.json()["cuts_auto"] == summary["cuts"]
     assert Path(fb.json()["path"]).is_file()
 
+    # Premiere multicam: the stacked edit + a multicam source sequence in one xmeml
+    mc = api.get(f"{P}/sessions/{sid}/export", params={"format": "xmeml", "method": "multicam"})
+    assert mc.status_code == 200, mc.text
+    seqs = ET.parse(mc.json()["path"]).getroot().findall("project/children/sequence")
+    assert [s.findtext("name", "").endswith("Multicam Source") for s in seqs] == [False, True]
+
+    # social clips: one sequence per aspect, each with an xmeml to import
     social = api.post(
-        f"{P}/sessions/{sid}/social", json={"in_frame": 0, "out_frame": 30, "aspects": ["9:16"]}
+        f"{P}/sessions/{sid}/social",
+        json={"in_frame": 30, "out_frame": 330, "aspects": ["9:16", "1:1"], "name": "Clip 1"},
     )
-    _error(social, 501, "not_available")
+    assert social.status_code == 200, social.text
+    clips = social.json()["clips"]
+    assert [c["aspect"] for c in clips] == ["9:16", "1:1"]
+    assert [(c["width"], c["height"]) for c in clips] == [(1080, 1920), (1080, 1080)]
+    assert [c["name"] for c in clips] == ["Clip 1 - 9x16", "Clip 1 - 1x1"]
+    for c in clips:
+        assert c["duration_frames"] == 300 and c["render_path"].endswith(".mp4")
+        xml = ET.parse(c["xml_path"]).getroot()
+        assert xml.findtext("sequence/media/video/format/samplecharacteristics/width") == "1080"
+        assert xml.find(".//effect[effectid='basic']") is not None  # framed for the aspect
+    _error(
+        api.post(
+            f"{P}/sessions/{sid}/social",
+            json={"in_frame": 50, "out_frame": 40, "aspects": ["9:16"]},
+        ),
+        422,
+        "invalid_request",
+    )
+    _error(
+        api.post(
+            f"{P}/sessions/{sid}/social",
+            json={
+                "in_frame": 0,
+                "out_frame": 90,
+                "aspects": ["9:16"],
+                "watermark": {"path": "/nope.png"},
+            },
+        ),
+        422,
+        "media_offline",
+    )
+
+
+def test_jump_cuts_review_and_ripple(api: TestClient, recording: Recording) -> None:
+    session = _create(api, recording, host_sequence_id="seq-jumpcuts")
+    sid = session["id"]
+    _error(api.post(f"{P}/sessions/{sid}/jumpcuts", json={}), 409, "no_plan")
+    _setup_roles(api, session)
+    run = api.post(f"{P}/sessions/{sid}/run", json={"vad": "energy"}).json()
+    assert wait(api, run["job_id"])["status"] == "succeeded"
+    _error(api.get(f"{P}/sessions/{sid}/editplan", params={"ripple": True}), 409, "no_plan")
+
+    jc = api.post(
+        f"{P}/sessions/{sid}/jumpcuts",
+        json={"mode": "db", "threshold_db": -40, "min_silence_s": 0.3, "pad_s": 0.05},
+    )
+    assert jc.status_code == 202, jc.text
+    assert jc.json()["kind"] == "jumpcut"
+    events = _sse(api, jc.json()["events_url"])
+    assert events[-1][0] == "plan_ready", events[-3:]
+    job = wait(api, jc.json()["job_id"])
+    assert job["status"] == "succeeded", job
+    assert job["result"]["removals"] >= 1  # at least the silence before the first word
+
+    rem = api.get(f"{P}/sessions/{sid}/removals").json()
+    assert rem["cutlist_version"] == job["result"]["version"]
+    items = rem["removals"]
+    assert items and all(r["kind"] == "silence" and r["approved"] for r in items)
+    assert rem["removed_frames"] == sum(r["end"] - r["start"] for r in items)
+
+    # reject one -> new version, fewer frames removed
+    patched = api.patch(f"{P}/sessions/{sid}/removals", json={"reject": [0]}).json()
+    assert patched["cutlist_version"] == rem["cutlist_version"] + 1
+    assert not patched["removals"][0]["approved"]
+    _error(
+        api.patch(f"{P}/sessions/{sid}/removals", json={"approve": [999]}), 422, "invalid_request"
+    )
+    patched = api.patch(f"{P}/sessions/{sid}/removals", json={"all": True}).json()
+    assert all(r["approved"] for r in patched["removals"])
+
+    full = EditPlan.model_validate(api.get(f"{P}/sessions/{sid}/editplan").json())
+    cut = EditPlan.model_validate(
+        api.get(f"{P}/sessions/{sid}/editplan", params={"ripple": True}).json()
+    )
+    assert cut.rippled and not cut.removals
+    removed = patched["removed_frames"]
+    assert cut.sequence.duration_frames == full.sequence.duration_frames - removed
+    assert cut.sequence.name.endswith(" - Jump Cuts")
+    exp = api.get(f"{P}/sessions/{sid}/export", params={"format": "xmeml", "ripple": True})
+    assert exp.status_code == 200, exp.text
+    assert exp.json()["path"].endswith("-jumpcuts.xml")
+    root = ET.parse(exp.json()["path"]).getroot()
+    assert root.findtext("sequence/duration") == str(cut.sequence.duration_frames)
+
+    # speech detection mode works on the same analysis
+    vad = api.post(f"{P}/sessions/{sid}/jumpcuts", json={"mode": "vad", "min_silence_s": 0.3})
+    assert wait(api, vad.json()["job_id"])["status"] == "succeeded"
+    hs = api.get(f"{P}/handshake").json()
+    assert {"jump_cuts", "ripple", "social"} <= set(hs["capabilities"])
 
 
 def test_already_synced_skips_audio_sync(api: TestClient, recording: Recording) -> None:

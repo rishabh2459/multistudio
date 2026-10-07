@@ -236,6 +236,17 @@
     "EditPlan": {
       "additionalProperties": false,
       "properties": {
+        "aspect": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "audio_mode": {
           "$ref": "#/$defs/AudioMode",
           "default": "mix"
@@ -269,6 +280,12 @@
           "$ref": "#/$defs/PlanMethod",
           "default": "stacked_enable"
         },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/PlanOverlay"
+          },
+          "type": "array"
+        },
         "plan_version": {
           "const": 1,
           "default": 1,
@@ -284,6 +301,10 @@
             "$ref": "#/$defs/PlanRemoval"
           },
           "type": "array"
+        },
+        "rippled": {
+          "default": false,
+          "type": "boolean"
         },
         "sequence": {
           "$ref": "#/$defs/PlanSequence"
@@ -321,6 +342,9 @@
         "audio_tracks",
         "removals",
         "markers",
+        "overlays",
+        "aspect",
+        "rippled",
         "warnings"
       ],
       "title": "EditPlan",
@@ -760,6 +784,74 @@
       "title": "PlanMethod",
       "type": "string"
     },
+    "PlanOverlay": {
+      "additionalProperties": false,
+      "description": "A picture above the edit (watermark / logo) on its own video track.",
+      "properties": {
+        "clip_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "opacity": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "source_in_frame": {
+          "description": "Frames at the media's own rate (nearest)",
+          "type": "integer"
+        },
+        "source_in_sample": {
+          "description": "Samples at the media's audio rate (nearest)",
+          "type": "integer"
+        },
+        "source_in_ticks": {
+          "description": "Premiere ticks (254016000000 per second)",
+          "type": "integer"
+        },
+        "start": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "track": {
+          "description": "1 = first track above the cameras",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "transform": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/PlanTransformKey"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "clip_id",
+        "source_in_frame",
+        "source_in_sample",
+        "source_in_ticks",
+        "track",
+        "opacity",
+        "transform"
+      ],
+      "title": "PlanOverlay",
+      "type": "object"
+    },
     "PlanPiece": {
       "additionalProperties": false,
       "description": "Sequence frames [start, end) show the media from ``source_in``.",
@@ -858,6 +950,38 @@
         "host_start_frame"
       ],
       "title": "PlanSequence",
+      "type": "object"
+    },
+    "PlanTransformKey": {
+      "additionalProperties": false,
+      "description": "Where the media sits at one sequence frame, in the host's Motion terms.\n\n``scale`` is percent of the media's native size (Premiere Motion > Scale) and\n``x``/``y`` the media's centre in sequence pixels (Motion > Position). Hosts\ninterpolate linearly between keys and hold outside them.",
+      "properties": {
+        "frame": {
+          "description": "Sequence frame",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scale": {
+          "description": "Percent of the media's native size",
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "x": {
+          "description": "Media centre, sequence pixels from the left",
+          "type": "number"
+        },
+        "y": {
+          "description": "Media centre, sequence pixels from the top",
+          "type": "number"
+        }
+      },
+      "required": [
+        "frame",
+        "scale",
+        "x",
+        "y"
+      ],
+      "title": "PlanTransformKey",
       "type": "object"
     },
     "Preset": {
@@ -1311,6 +1435,20 @@
         "start": {
           "minimum": 0,
           "type": "integer"
+        },
+        "transform": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/PlanTransformKey"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1320,7 +1458,8 @@
         "source_in_frame",
         "source_in_sample",
         "source_in_ticks",
-        "enabled"
+        "enabled",
+        "transform"
       ],
       "title": "TrackPiece",
       "type": "object"
@@ -1388,6 +1527,21 @@
         "start": {
           "minimum": 0,
           "type": "integer"
+        },
+        "transform": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/PlanTransformKey"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Motion keyframes that show the reframe (None: as placed)"
         }
       },
       "required": [
@@ -1400,7 +1554,8 @@
         "shot",
         "confidence",
         "reframe",
-        "reframe_vertical"
+        "reframe_vertical",
+        "transform"
       ],
       "title": "VideoEvent",
       "type": "object"

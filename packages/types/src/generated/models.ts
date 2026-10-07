@@ -185,6 +185,7 @@ export interface ReframeKey {
  * via the `definition` "EditPlan".
  */
 export interface EditPlan {
+  aspect: string | null;
   audio_mode: AudioMode1;
   audio_tracks: AudioTrack[];
   cutlist_version: number;
@@ -192,12 +193,14 @@ export interface EditPlan {
   markers: PlanMarker[];
   media: PlanMedia[];
   method: PlanMethod;
+  overlays: PlanOverlay[];
   plan_version: 1;
   project_id: string;
   /**
    * Approved only
    */
   removals: PlanRemoval[];
+  rippled: boolean;
   sequence: PlanSequence;
   video_events: VideoEvent[];
   video_tracks: VideoTrack[];
@@ -297,6 +300,63 @@ export interface PlanMedia {
   width: number;
 }
 /**
+ * A picture above the edit (watermark / logo) on its own video track.
+ *
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "PlanOverlay".
+ */
+export interface PlanOverlay {
+  clip_id: string;
+  end: number;
+  opacity: number;
+  /**
+   * Frames at the media's own rate (nearest)
+   */
+  source_in_frame: number;
+  /**
+   * Samples at the media's audio rate (nearest)
+   */
+  source_in_sample: number;
+  /**
+   * Premiere ticks (254016000000 per second)
+   */
+  source_in_ticks: number;
+  start: number;
+  /**
+   * 1 = first track above the cameras
+   */
+  track: number;
+  transform: PlanTransformKey[] | null;
+}
+/**
+ * Where the media sits at one sequence frame, in the host's Motion terms.
+ *
+ * ``scale`` is percent of the media's native size (Premiere Motion > Scale) and
+ * ``x``/``y`` the media's centre in sequence pixels (Motion > Position). Hosts
+ * interpolate linearly between keys and hold outside them.
+ *
+ * This interface was referenced by `MulticamSchemas`'s JSON-Schema
+ * via the `definition` "PlanTransformKey".
+ */
+export interface PlanTransformKey {
+  /**
+   * Sequence frame
+   */
+  frame: number;
+  /**
+   * Percent of the media's native size
+   */
+  scale: number;
+  /**
+   * Media centre, sequence pixels from the left
+   */
+  x: number;
+  /**
+   * Media centre, sequence pixels from the top
+   */
+  y: number;
+}
+/**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
  * via the `definition` "PlanRemoval".
  */
@@ -343,6 +403,10 @@ export interface VideoEvent {
    */
   source_in_ticks: number;
   start: number;
+  /**
+   * Motion keyframes that show the reframe (None: as placed)
+   */
+  transform: PlanTransformKey[] | null;
 }
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema
@@ -377,6 +441,7 @@ export interface TrackPiece {
    */
   source_in_ticks: number;
   start: number;
+  transform: PlanTransformKey[] | null;
 }
 /**
  * This interface was referenced by `MulticamSchemas`'s JSON-Schema

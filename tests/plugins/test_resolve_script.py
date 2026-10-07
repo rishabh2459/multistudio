@@ -79,6 +79,7 @@ def test_roles_and_names() -> None:
         {"clip_id": "3", "role": "mic", "speaker_label": None},
     ]
     assert speaker_name("C:\\rec\\guest-cam-2.mp4") == "Guest"
+    assert speaker_name("/r/IMG_0001.MOV") == "IMG_0001"  # generic camera names stay distinct
     assert looks_synced([{"record_start_frame": 0, "in_frame": 0}] * 2) is False
     assert (
         looks_synced([{"record_start_frame": 0, "in_frame": 0}, {"record_start_frame": 15}]) is True
@@ -311,6 +312,9 @@ class _Item:
     def AddItems(self, items: list[str]) -> None:  # noqa: N802
         self.options.extend(items)
 
+    def Clear(self) -> None:  # noqa: N802
+        self.options = []
+
 
 class _On:
     def __init__(self) -> None:
@@ -409,6 +413,9 @@ def test_window_wiring(
                 statuses.append(fake.items["Status"].Text)
 
             click("Connect")
+            wide_list = fake.items["Wide"].options
+            assert wide_list[0] == "(no wide camera)" and "wide.mp4" in wide_list
+            fake.items["Wide"].CurrentIndex = wide_list.index("wide.mp4")
             fake.items["Preset"].CurrentIndex = 2  # dynamic
             click("Run")
             click("Apply")
@@ -422,7 +429,7 @@ def test_window_wiring(
         UIManager = fake
 
     ui_mod.main(resolve, Fusion(), Bmd())
-    assert "Choose a style" in statuses[0], statuses
+    assert "Pick the wide camera" in statuses[0], statuses
     assert statuses[1].startswith("Plan v"), statuses
     assert statuses[2].startswith('Created timeline "'), statuses
     assert fake.items["Preset"].options[2] == "Dynamic"

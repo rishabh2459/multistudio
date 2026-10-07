@@ -26,6 +26,12 @@ export function speakerName(path: string): string {
     .replace(/[_\-.]+/g, ' ')
     .split(/\s+/)
     .filter((w) => w && !/^(cam(era)?|a|b|c|d|\d+|mic|audio|track|ch\d*)$/i.test(w));
+  // IMG_0001 / DSC_1234: the file name is the only label we have.
+  if (
+    !words.length ||
+    words.every((w) => /^(img|dsc|dscf|mvi|gopr|gx|vid|mov|clip|c|a|p)$/i.test(w))
+  )
+    return stem(path);
   const name = words.join(' ').trim() || stem(path);
   return name.charAt(0).toUpperCase() + name.slice(1);
 }

@@ -54,6 +54,17 @@ class Source:
 
 
 @dataclass(frozen=True)
+class TransformKey:
+    """Where a clip sits at one timeline frame (host Motion terms): ``scale`` in
+    percent of its native size, ``x``/``y`` its centre in sequence pixels."""
+
+    frame: int
+    scale: float
+    x: float
+    y: float
+
+
+@dataclass(frozen=True)
 class Event:
     """A clip on a track: timeline frames [start, end) show media from ``source_in``."""
 
@@ -61,6 +72,10 @@ class Event:
     start: int  # timeline frames
     end: int
     source_in: Fraction  # seconds since the file's first frame
+    #: Motion keyframes (empty: the clip as placed).
+    transform: tuple[TransformKey, ...] = ()
+    #: 0..1, None = fully opaque (no opacity filter written).
+    opacity: float | None = None
 
     @property
     def frames(self) -> int:
@@ -91,6 +106,8 @@ class NleTimeline:
     #: Optional "stacked" layout (one video track per camera, the non-live pieces
     #: disabled). When set, the XML writers use it instead of the single cut track.
     stacked: list[list[tuple[Event, bool]]] = field(default_factory=list)
+    #: Extra video tracks above the picture (watermark / logo), bottom to top.
+    overlays: list[list[Event]] = field(default_factory=list)
 
     def source_out(self, event: Event) -> Fraction:
         return event.source_in + Fraction(event.frames) / self.fps

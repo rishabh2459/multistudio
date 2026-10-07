@@ -9,6 +9,7 @@ import type { AutoEditController, FlowState } from '../session';
 import type { ClipRole, EditPlan, PlanMethod, Preset, SessionOut } from '../types';
 import { useFlow } from './hooks';
 import { htmlPrimitives, type Primitives } from './primitives';
+import { ToolsPanel } from './ToolsPanel';
 
 export interface PanelProps {
   controller: AutoEditController;
@@ -254,6 +255,7 @@ function ReviewView({
         </ui.Button>
         <ui.Button onClick={() => controller.backToSetup()}>Back to setup</ui.Button>
       </div>
+      <ToolsPanel state={state} controller={controller} ui={ui} />
     </section>
   );
 }
@@ -349,6 +351,7 @@ function AppliedView({
           <ui.Button onClick={() => void controller.sendFeedback()}>Send my corrections</ui.Button>
         )}
       </div>
+      <ToolsPanel state={state} controller={controller} ui={ui} />
     </section>
   );
 }

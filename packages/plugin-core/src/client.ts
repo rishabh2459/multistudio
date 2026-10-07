@@ -4,6 +4,7 @@
  * Uses only `fetch`, so it runs in UXP (Premiere), Electron (Resolve WI) and Node.
  */
 import { PluginError } from './errors';
+import type { JumpCutIn, RemovalsOut, RemovalsPatch, SocialIn, SocialOut } from './extras';
 import type {
   EditPlan,
   ErrorCode,
@@ -126,12 +127,13 @@ export class PluginClient {
 
   editPlan(
     id: string,
-    opts: { host?: string; version?: number; method?: PlanMethod } = {},
+    opts: { host?: string; version?: number; method?: PlanMethod; ripple?: boolean } = {},
   ): Promise<EditPlan> {
     const q = new URLSearchParams();
     if (opts.host) q.set('host', opts.host);
     if (opts.version) q.set('version', String(opts.version));
     if (opts.method) q.set('method', opts.method);
+    if (opts.ripple) q.set('ripple', 'true');
     const qs = q.toString();
     return this.request('GET', `/sessions/${id}/editplan${qs ? `?${qs}` : ''}`);
   }
@@ -141,10 +143,12 @@ export class PluginClient {
     format: 'fcpxml' | 'fcpxml_multicam' | 'xmeml' | 'edl',
     version?: number,
     method?: PlanMethod,
+    opts: { ripple?: boolean } = {},
   ): Promise<ExportFileOut> {
     const q = new URLSearchParams({ format });
     if (version) q.set('version', String(version));
     if (method) q.set('method', method);
+    if (opts.ripple) q.set('ripple', 'true');
     return this.request('GET', `/sessions/${id}/export?${q.toString()}`);
   }
 
@@ -154,6 +158,24 @@ export class PluginClient {
 
   presets(): Promise<PresetOut[]> {
     return this.request('GET', '/presets');
+  }
+
+  /** Social clips: one plan (+ xmeml) per aspect ratio for an in/out range. */
+  social(id: string, body: SocialIn): Promise<SocialOut> {
+    return this.request('POST', `/sessions/${id}/social`, body);
+  }
+
+  /** Start silence detection (a job: follow its events_url). */
+  jumpCuts(id: string, body: JumpCutIn = {}): Promise<RunOut> {
+    return this.request('POST', `/sessions/${id}/jumpcuts`, body);
+  }
+
+  removals(id: string, version?: number): Promise<RemovalsOut> {
+    return this.request('GET', `/sessions/${id}/removals${version ? `?version=${version}` : ''}`);
+  }
+
+  updateRemovals(id: string, patch: RemovalsPatch): Promise<RemovalsOut> {
+    return this.request('PATCH', `/sessions/${id}/removals`, patch);
   }
 }
 

@@ -266,6 +266,7 @@ export interface paths {
         /**
          * Get Editplan
          * @description The edit as host operations (default: latest version, the session's method).
+         *     ``ripple``: the approved removals taken out of every track (jump-cut edit).
          */
         get: operations["get_editplan_api_plugin_v1_sessions__session_id__editplan_get"];
         put?: never;
@@ -309,7 +310,8 @@ export interface paths {
          * @description Write the plan as a file the host can import (Rule C fallback).
          *
          *     ``fcpxml`` with method ``multicam`` (or ``fcpxml_multicam``) writes a multicam
-         *     clip with angle switches (Final Cut, Resolve).
+         *     clip with angle switches (Final Cut, Resolve). ``xmeml`` with method
+         *     ``multicam`` writes the stacked edit + a "Multicam Source" sequence (Premiere).
          */
         get: operations["export_session_api_plugin_v1_sessions__session_id__export_get"];
         put?: never;
@@ -338,6 +340,53 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/plugin/v1/sessions/{session_id}/jumpcuts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Find Jump Cuts
+         * @description Find pauses (AutoPod's jump cut editor): a job that stores them as silence
+         *     removals on a new cutlist version. Follow ``events_url``; then review them with
+         *     ``GET/PATCH .../removals`` and apply with ``editplan?ripple=true`` or
+         *     ``export?format=xmeml&ripple=true``.
+         */
+        post: operations["find_jump_cuts_api_plugin_v1_sessions__session_id__jumpcuts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plugin/v1/sessions/{session_id}/removals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Removals
+         * @description Every removal of the edit (pauses, fillers) and whether it is approved.
+         */
+        get: operations["get_removals_api_plugin_v1_sessions__session_id__removals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Removals
+         * @description Approve / reject removals (by index) as a new cutlist version.
+         */
+        patch: operations["update_removals_api_plugin_v1_sessions__session_id__removals_patch"];
         trace?: never;
     };
     "/api/plugin/v1/sessions/{session_id}/run": {
@@ -388,7 +437,10 @@ export interface paths {
         put?: never;
         /**
          * Social Clips
-         * @description Social clips (in/out -> one plan per aspect ratio) arrive in PL5.
+         * @description Social clips (AutoPod's Social Clip Creator): the in/out range as one plan
+         *     per aspect ratio with speaker-aware framing, optional watermark and end page,
+         *     optionally without the approved removals. Each comes with an xmeml (one import
+         *     = one sequence in Premiere) and a suggested render path for the batch export.
          */
         post: operations["social_clips_api_plugin_v1_sessions__session_id__social_post"];
         delete?: never;
@@ -1000,6 +1052,8 @@ export interface components {
         };
         /** EditPlan */
         "EditPlan-Input": {
+            /** Aspect */
+            aspect?: string | null;
             /** @default mix */
             audio_mode?: components["schemas"]["AudioMode"];
             /** Audio Tracks */
@@ -1014,6 +1068,8 @@ export interface components {
             media: components["schemas"]["PlanMedia-Input"][];
             /** @default stacked_enable */
             method?: components["schemas"]["PlanMethod"];
+            /** Overlays */
+            overlays?: components["schemas"]["PlanOverlay-Input"][];
             /**
              * Plan Version
              * @default 1
@@ -1030,16 +1086,23 @@ export interface components {
              * @description Approved only
              */
             removals?: components["schemas"]["PlanRemoval"][];
+            /**
+             * Rippled
+             * @default false
+             */
+            rippled?: boolean;
             sequence: components["schemas"]["PlanSequence-Input"];
             /** Video Events */
             video_events: components["schemas"]["VideoEvent-Input"][];
             /** Video Tracks */
-            video_tracks: components["schemas"]["VideoTrack"][];
+            video_tracks: components["schemas"]["VideoTrack-Input"][];
             /** Warnings */
             warnings?: string[];
         };
         /** EditPlan */
         "EditPlan-Output": {
+            /** Aspect */
+            aspect: string | null;
             /** @default mix */
             audio_mode: components["schemas"]["AudioMode"];
             /** Audio Tracks */
@@ -1054,6 +1117,8 @@ export interface components {
             media: components["schemas"]["PlanMedia-Output"][];
             /** @default stacked_enable */
             method: components["schemas"]["PlanMethod"];
+            /** Overlays */
+            overlays: components["schemas"]["PlanOverlay-Output"][];
             /**
              * Plan Version
              * @default 1
@@ -1070,13 +1135,31 @@ export interface components {
              * @description Approved only
              */
             removals: components["schemas"]["PlanRemoval"][];
+            /**
+             * Rippled
+             * @default false
+             */
+            rippled: boolean;
             sequence: components["schemas"]["PlanSequence-Output"];
             /** Video Events */
             video_events: components["schemas"]["VideoEvent-Output"][];
             /** Video Tracks */
-            video_tracks: components["schemas"]["VideoTrack"][];
+            video_tracks: components["schemas"]["VideoTrack-Output"][];
             /** Warnings */
             warnings: string[];
+        };
+        /** EndPageIn */
+        EndPageIn: {
+            /**
+             * Path
+             * @description A still or a video appended after the clip
+             */
+            path: string;
+            /**
+             * Seconds
+             * @default 3
+             */
+            seconds?: number;
         };
         /** ExportFileOut */
         ExportFileOut: {
@@ -1225,7 +1308,7 @@ export interface components {
          * JobKind
          * @enum {string}
          */
-        JobKind: "probe" | "sync" | "analyze" | "decide" | "auto" | "render" | "proxy" | "reframe";
+        JobKind: "probe" | "sync" | "analyze" | "decide" | "auto" | "render" | "proxy" | "reframe" | "jumpcut";
         /** JobOut */
         JobOut: {
             /**
@@ -1273,6 +1356,52 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        /**
+         * JumpCutParams
+         * @description Jump-cut editor settings (AutoPod's dB cutoff, or speech detection).
+         */
+        JumpCutParams: {
+            /**
+             * Approve
+             * @description Removals start approved
+             * @default true
+             */
+            approve?: boolean;
+            /**
+             * Mic Threshold Db
+             * @description Per-mic cutoff by the mic's clip id (db mode)
+             */
+            mic_threshold_db?: {
+                [key: string]: number;
+            };
+            /**
+             * Min Removal S
+             * @default 0.2
+             */
+            min_removal_s?: number;
+            /**
+             * Min Silence S
+             * @default 0.6
+             */
+            min_silence_s?: number;
+            /**
+             * Mode
+             * @description db: loudness cutoff on every mic; vad: speech detection
+             * @default db
+             * @enum {string}
+             */
+            mode?: "db" | "vad";
+            /**
+             * Pad S
+             * @default 0.15
+             */
+            pad_s?: number;
+            /**
+             * Threshold Db
+             * @default -40
+             */
+            threshold_db?: number;
+        };
         /** LicenceInfo */
         LicenceInfo: {
             /** Plan */
@@ -1567,6 +1696,90 @@ export interface components {
          */
         PlanMethod: "cuts" | "stacked_enable" | "multicam";
         /**
+         * PlanOverlay
+         * @description A picture above the edit (watermark / logo) on its own video track.
+         */
+        "PlanOverlay-Input": {
+            /**
+             * Clip Id
+             * Format: uuid
+             */
+            clip_id: string;
+            /** End */
+            end: number;
+            /**
+             * Opacity
+             * @default 1
+             */
+            opacity?: number;
+            /**
+             * Source In Frame
+             * @description Frames at the media's own rate (nearest)
+             */
+            source_in_frame: number;
+            /**
+             * Source In Sample
+             * @description Samples at the media's audio rate (nearest)
+             */
+            source_in_sample: number;
+            /**
+             * Source In Ticks
+             * @description Premiere ticks (254016000000 per second)
+             */
+            source_in_ticks: number;
+            /** Start */
+            start: number;
+            /**
+             * Track
+             * @description 1 = first track above the cameras
+             */
+            track: number;
+            /** Transform */
+            transform?: components["schemas"]["PlanTransformKey"][] | null;
+        };
+        /**
+         * PlanOverlay
+         * @description A picture above the edit (watermark / logo) on its own video track.
+         */
+        "PlanOverlay-Output": {
+            /**
+             * Clip Id
+             * Format: uuid
+             */
+            clip_id: string;
+            /** End */
+            end: number;
+            /**
+             * Opacity
+             * @default 1
+             */
+            opacity: number;
+            /**
+             * Source In Frame
+             * @description Frames at the media's own rate (nearest)
+             */
+            source_in_frame: number;
+            /**
+             * Source In Sample
+             * @description Samples at the media's audio rate (nearest)
+             */
+            source_in_sample: number;
+            /**
+             * Source In Ticks
+             * @description Premiere ticks (254016000000 per second)
+             */
+            source_in_ticks: number;
+            /** Start */
+            start: number;
+            /**
+             * Track
+             * @description 1 = first track above the cameras
+             */
+            track: number;
+            /** Transform */
+            transform: components["schemas"]["PlanTransformKey"][] | null;
+        };
+        /**
          * PlanPiece
          * @description Sequence frames [start, end) show the media from ``source_in``.
          */
@@ -1651,6 +1864,36 @@ export interface components {
             low_confidence_cuts: number;
             /** Source */
             source: string;
+        };
+        /**
+         * PlanTransformKey
+         * @description Where the media sits at one sequence frame, in the host's Motion terms.
+         *
+         *     ``scale`` is percent of the media's native size (Premiere Motion > Scale) and
+         *     ``x``/``y`` the media's centre in sequence pixels (Motion > Position). Hosts
+         *     interpolate linearly between keys and hold outside them.
+         */
+        PlanTransformKey: {
+            /**
+             * Frame
+             * @description Sequence frame
+             */
+            frame: number;
+            /**
+             * Scale
+             * @description Percent of the media's native size
+             */
+            scale: number;
+            /**
+             * X
+             * @description Media centre, sequence pixels from the left
+             */
+            x: number;
+            /**
+             * Y
+             * @description Media centre, sequence pixels from the top
+             */
+            y: number;
         };
         /**
          * Preset
@@ -1937,6 +2180,52 @@ export interface components {
          * @enum {string}
          */
         RemovalKind: "filler" | "silence" | "manual";
+        /** RemovalOut */
+        RemovalOut: {
+            /** Approved */
+            approved: boolean;
+            /** End */
+            end: number;
+            /**
+             * Index
+             * @description Position in the cutlist's removals (for PATCH)
+             */
+            index: number;
+            /** Kind */
+            kind: string;
+            /** Seconds */
+            seconds: number;
+            /** Start */
+            start: number;
+        };
+        /** RemovalsOut */
+        RemovalsOut: {
+            /** Cutlist Version */
+            cutlist_version: number;
+            /** Duration Frames */
+            duration_frames: number;
+            /** Removals */
+            removals: components["schemas"]["RemovalOut"][];
+            /**
+             * Removed Frames
+             * @description Approved removals only
+             */
+            removed_frames: number;
+            /** Removed Seconds */
+            removed_seconds: number;
+        };
+        /** RemovalsPatch */
+        RemovalsPatch: {
+            /**
+             * All
+             * @description Approve (true) / reject (false) all first
+             */
+            all?: boolean | null;
+            /** Approve */
+            approve?: number[];
+            /** Reject */
+            reject?: number[];
+        };
         /** RoleIn */
         RoleIn: {
             /**
@@ -2193,14 +2482,77 @@ export interface components {
          * @enum {string}
          */
         ShotType: "solo" | "two" | "three" | "four" | "wide" | "broll";
+        /** SocialClipOut */
+        SocialClipOut: {
+            /**
+             * Aspect
+             * @enum {string}
+             */
+            aspect: "16:9" | "4:5" | "9:16" | "1:1";
+            /** Duration Frames */
+            duration_frames: number;
+            /** Height */
+            height: number;
+            /** Name */
+            name: string;
+            plan: components["schemas"]["EditPlan-Output"];
+            /**
+             * Render Path
+             * @description Suggested output file for the batch export
+             */
+            render_path: string;
+            /** Width */
+            width: number;
+            /**
+             * Xml Path
+             * @description xmeml of this clip (import fallback)
+             */
+            xml_path: string | null;
+        };
         /** SocialIn */
         SocialIn: {
             /** Aspects */
             aspects: ("16:9" | "4:5" | "9:16" | "1:1")[];
-            /** In Frame */
+            end_page?: components["schemas"]["EndPageIn"] | null;
+            /**
+             * In Frame
+             * @description Plan frame where the clip starts
+             */
             in_frame: number;
-            /** Out Frame */
+            /**
+             * Jump Cuts
+             * @description Ripple out the approved removals
+             * @default false
+             */
+            jump_cuts?: boolean;
+            /** Name */
+            name?: string | null;
+            /**
+             * Out Frame
+             * @description Plan frame where it ends (exclusive)
+             */
             out_frame: number;
+            /**
+             * Version
+             * @description Cutlist version (latest)
+             */
+            version?: number | null;
+            watermark?: components["schemas"]["WatermarkIn"] | null;
+            /**
+             * Xml
+             * @description Also write an xmeml per aspect (Premiere)
+             * @default true
+             */
+            xml?: boolean;
+        };
+        /** SocialOut */
+        SocialOut: {
+            /** Clips */
+            clips: components["schemas"]["SocialClipOut"][];
+            /** Export Dir */
+            export_dir: string;
+            /** Warnings */
+            warnings: string[];
         };
         /**
          * Speaker
@@ -2427,7 +2779,7 @@ export interface components {
             proxies_ready: boolean;
         };
         /** TrackPiece */
-        TrackPiece: {
+        "TrackPiece-Input": {
             /**
              * Clip Id
              * Format: uuid
@@ -2457,6 +2809,42 @@ export interface components {
             source_in_ticks: number;
             /** Start */
             start: number;
+            /** Transform */
+            transform?: components["schemas"]["PlanTransformKey"][] | null;
+        };
+        /** TrackPiece */
+        "TrackPiece-Output": {
+            /**
+             * Clip Id
+             * Format: uuid
+             */
+            clip_id: string;
+            /**
+             * Enabled
+             * @description Live at this time (stacked_enable)
+             */
+            enabled: boolean;
+            /** End */
+            end: number;
+            /**
+             * Source In Frame
+             * @description Frames at the media's own rate (nearest)
+             */
+            source_in_frame: number;
+            /**
+             * Source In Sample
+             * @description Samples at the media's audio rate (nearest)
+             */
+            source_in_sample: number;
+            /**
+             * Source In Ticks
+             * @description Premiere ticks (254016000000 per second)
+             */
+            source_in_ticks: number;
+            /** Start */
+            start: number;
+            /** Transform */
+            transform: components["schemas"]["PlanTransformKey"][] | null;
         };
         /** UserPresetIn */
         UserPresetIn: {
@@ -2511,6 +2899,11 @@ export interface components {
             source_in_ticks: number;
             /** Start */
             start: number;
+            /**
+             * Transform
+             * @description Motion keyframes that show the reframe (None: as placed)
+             */
+            transform?: components["schemas"]["PlanTransformKey"][] | null;
         };
         /**
          * VideoEvent
@@ -2546,9 +2939,14 @@ export interface components {
             source_in_ticks: number;
             /** Start */
             start: number;
+            /**
+             * Transform
+             * @description Motion keyframes that show the reframe (None: as placed)
+             */
+            transform: components["schemas"]["PlanTransformKey"][] | null;
         };
         /** VideoTrack */
-        VideoTrack: {
+        "VideoTrack-Input": {
             /**
              * Clip Id
              * Format: uuid
@@ -2557,7 +2955,50 @@ export interface components {
             /** Index */
             index: number;
             /** Pieces */
-            pieces: components["schemas"]["TrackPiece"][];
+            pieces: components["schemas"]["TrackPiece-Input"][];
+        };
+        /** VideoTrack */
+        "VideoTrack-Output": {
+            /**
+             * Clip Id
+             * Format: uuid
+             */
+            clip_id: string;
+            /** Index */
+            index: number;
+            /** Pieces */
+            pieces: components["schemas"]["TrackPiece-Output"][];
+        };
+        /** WatermarkIn */
+        WatermarkIn: {
+            /**
+             * Corner
+             * @default bottom_right
+             * @enum {string}
+             */
+            corner?: "top_left" | "top_right" | "bottom_left" | "bottom_right" | "center";
+            /**
+             * Margin
+             * @description Fraction of the width
+             * @default 0.04
+             */
+            margin?: number;
+            /**
+             * Opacity
+             * @default 0.9
+             */
+            opacity?: number;
+            /**
+             * Path
+             * @description PNG / JPEG / GIF / WebP (or a short video)
+             */
+            path: string;
+            /**
+             * Size
+             * @description Fraction of the frame width
+             * @default 0.18
+             */
+            size?: number;
         };
         /** WaveformOut */
         WaveformOut: {
@@ -3070,6 +3511,7 @@ export interface operations {
                 host?: components["schemas"]["HostApp"];
                 version?: number | null;
                 method?: components["schemas"]["PlanMethod"] | null;
+                ripple?: boolean;
             };
             header?: never;
             path: {
@@ -3138,6 +3580,7 @@ export interface operations {
                 format?: string;
                 version?: number | null;
                 method?: components["schemas"]["PlanMethod"] | null;
+                ripple?: boolean;
             };
             header?: never;
             path: {
@@ -3189,6 +3632,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeedbackOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    find_jump_cuts_api_plugin_v1_sessions__session_id__jumpcuts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JumpCutParams"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_removals_api_plugin_v1_sessions__session_id__removals_get: {
+        parameters: {
+            query?: {
+                version?: number | null;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovalsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_removals_api_plugin_v1_sessions__session_id__removals_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemovalsPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovalsOut"];
                 };
             };
             /** @description Validation Error */
@@ -3293,9 +3839,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SocialOut"];
                 };
             };
             /** @description Validation Error */

@@ -16,8 +16,13 @@ def stem(path: str) -> str:
     return name.rsplit(".", 1)[0] if "." in name else name
 
 
+_CAMERA_PREFIX = re.compile(r"^(img|dsc|dscf|mvi|gopr|gx|vid|mov|clip|c|a|p)$", re.I)
+
+
 def speaker_name(path: str) -> str:
     words = [w for w in re.split(r"[\s_\-.]+", stem(path)) if w and not _NOISE.match(w)]
+    if not words or all(_CAMERA_PREFIX.match(w) for w in words):
+        return stem(path)  # IMG_0001 / DSC_1234: the file name is the only label we have
     name = " ".join(words).strip() or stem(path)
     return name[:1].upper() + name[1:]
 

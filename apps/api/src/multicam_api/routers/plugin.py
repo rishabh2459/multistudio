@@ -46,6 +46,9 @@ from multicam_api.plugin_schemas import (
     LicenceInfo,
     ModelsAvailable,
     PlanSummary,
+    RemovalOut,
+    RemovalsOut,
+    RemovalsPatch,
     RunIn,
     RunOut,
     SessionClipOut,
@@ -53,7 +56,9 @@ from multicam_api.plugin_schemas import (
     SessionOut,
     SessionSetup,
     SessionState,
+    SocialClipOut,
     SocialIn,
+    SocialOut,
 )
 from multicam_api.routers import presets as presets_router
 from multicam_api.routers._common import SessionDep, StateDep
@@ -62,12 +67,14 @@ from multicam_api.schemas import (
     JobKind,
     JobOut,
     JobStatus,
+    JumpCutParams,
     PresetOut,
     ProjectLayout,
     UserPresetIn,
 )
 from multicam_api.services import media as media_service
 from multicam_api.services.projects import (
+    add_cutlist_version,
     file_stat,
     file_status,
     follow_reference,
@@ -87,6 +94,16 @@ from multicam_engine.editplan import (
     build_edit_plan,
     plan_to_timeline,
     to_fcpxml_multicam,
+    to_xmeml_multicam,
+)
+from multicam_engine.editplan.ripple import apply_removals
+from multicam_engine.editplan.social import (
+    EndPage,
+    Picture,
+    SocialOptions,
+    Watermark,
+    build_social_plans,
+    load_picture,
 )
 from multicam_engine.export import EXTENSIONS, NleFormat, write_nle
 from multicam_engine.layout import LayoutError, resolve_layout
@@ -111,8 +128,16 @@ CAPABILITIES = [
     "export:fcpxml_multicam",
     "export:xmeml",
     "export:edl",
+    "export:xmeml_multicam_source",
     "markers",
     "reframe",
+    "social",
+    "social:watermark",
+    "social:end_page",
+    "jump_cuts",
+    "jump_cuts:db",
+    "jump_cuts:vad",
+    "ripple",
     "sound_only_mics",
     "multichannel_mics",
     "feedback",
@@ -590,6 +615,38 @@ def _plan(
     host: HostApp,
     version: int | None,
     method: PlanMethod | None,
+    ripple: bool = False,
+) -> EditPlan:
+    warn: list[str] = []
+    if ripple and (method or PlanMethod(row.method)) is PlanMethod.MULTICAM:
+        # A multicam clip keeps every angle on one continuous timeline; jump cuts break
+        # that, so the rippled edit comes as stacked tracks (same cuts, enable/disable).
+        method = PlanMethod.STACKED_ENABLE
+        warn.append("jump cuts: the edit comes as stacked tracks instead of a multicam clip")
+    plan = _built_plan(db, row, host=host, version=version, method=method)
+    if not ripple:
+        return plan
+    if not plan.removals:
+        raise PluginError(
+            ErrorCode.NO_PLAN,
+            "no approved removals to take out",
+            "find pauses (jump cuts) and approve some first",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    try:
+        cut = apply_removals(plan)
+    except ValueError as exc:
+        raise PluginError(ErrorCode.INVALID_REQUEST, str(exc)) from exc
+    return cut.model_copy(update={"warnings": [*cut.warnings, *warn]})
+
+
+def _built_plan(
+    db: Session,
+    row: PluginSessionRow,
+    *,
+    host: HostApp,
+    version: int | None,
+    method: PlanMethod | None,
 ) -> EditPlan:
     project_row = _project(db, row)
     cut_row = _cutlist_row(db, project_row.id, version)
@@ -636,9 +693,18 @@ def get_editplan(
     host: HostApp = HostApp.GENERIC,
     version: int | None = Query(default=None, ge=1),
     method: PlanMethod | None = None,
+    ripple: bool = False,
 ) -> EditPlan:
-    """The edit as host operations (default: latest version, the session's method)."""
-    return _plan(db, _session_or_404(db, session_id), host=host, version=version, method=method)
+    """The edit as host operations (default: latest version, the session's method).
+    ``ripple``: the approved removals taken out of every track (jump-cut edit)."""
+    return _plan(
+        db,
+        _session_or_404(db, session_id),
+        host=host,
+        version=version,
+        method=method,
+        ripple=ripple,
+    )
 
 
 _EXPORT_FORMATS = {
@@ -657,11 +723,13 @@ def export_session(
     format: str = "fcpxml",
     version: int | None = Query(default=None, ge=1),
     method: PlanMethod | None = None,
+    ripple: bool = False,
 ) -> ExportFileOut:
     """Write the plan as a file the host can import (Rule C fallback).
 
     ``fcpxml`` with method ``multicam`` (or ``fcpxml_multicam``) writes a multicam
-    clip with angle switches (Final Cut, Resolve)."""
+    clip with angle switches (Final Cut, Resolve). ``xmeml`` with method
+    ``multicam`` writes the stacked edit + a "Multicam Source" sequence (Premiere)."""
     if format not in _EXPORT_FORMATS:
         raise PluginError(
             ErrorCode.NOT_AVAILABLE,
@@ -669,20 +737,32 @@ def export_session(
             f"use one of {sorted(_EXPORT_FORMATS)}",
         )
     row = _session_or_404(db, session_id)
-    plan = _plan(db, row, host=HostApp.GENERIC, version=version, method=method)
+    plan = _plan(db, row, host=HostApp.GENERIC, version=version, method=method, ripple=ripple)
     fmt = _EXPORT_FORMATS[format]
+    if ripple and fmt is NleFormat.FCPXML_MULTICAM:
+        raise PluginError(
+            ErrorCode.NOT_AVAILABLE,
+            "a multicam clip cannot carry jump cuts",
+            "export fcpxml (stacked or cuts) for the jump-cut edit",
+        )
     if fmt is NleFormat.FCPXML and plan.method is PlanMethod.MULTICAM:
         fmt = NleFormat.FCPXML_MULTICAM
     project_id = UUID(row.project_id)
     stem = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in plan.sequence.name)
-    suffix = "-multicam" if fmt is NleFormat.FCPXML_MULTICAM else ""
+    multicam = fmt is NleFormat.FCPXML_MULTICAM or (
+        fmt is NleFormat.XMEML and plan.method is PlanMethod.MULTICAM
+    )
+    suffix = ("-multicam" if multicam else "") + ("-jumpcuts" if ripple else "")
     out = state.storage.exports_dir(project_id) / f"{stem}{suffix}{EXTENSIONS[fmt]}"
     out.parent.mkdir(parents=True, exist_ok=True)
-    text = (
-        to_fcpxml_multicam(plan)
-        if fmt is NleFormat.FCPXML_MULTICAM
-        else write_nle(plan_to_timeline(plan), fmt)
-    )
+    if fmt is NleFormat.FCPXML_MULTICAM:
+        text = to_fcpxml_multicam(plan)
+    elif fmt is NleFormat.XMEML and plan.method is PlanMethod.MULTICAM:
+        # Premiere cannot build multicam from XML or its API: the stacked edit plus a
+        # ready "Multicam Source" sequence, both in one file (one import).
+        text = to_xmeml_multicam(plan)
+    else:
+        text = write_nle(plan_to_timeline(plan), fmt)
     out.write_text(text, encoding="utf-8")
     db.add(
         ExportRow(
@@ -705,16 +785,179 @@ def export_session(
     )
 
 
-@router.post("/sessions/{session_id}/social")
-def social_clips(session_id: UUID, body: SocialIn, db: SessionDep) -> dict[str, Any]:
-    """Social clips (in/out -> one plan per aspect ratio) arrive in PL5."""
-    _session_or_404(db, session_id)
-    raise PluginError(
-        ErrorCode.NOT_AVAILABLE,
-        "social clips are not available in this engine yet",
-        "update Multicam Studio",
-        status_code=501,
+@router.post("/sessions/{session_id}/social", response_model=SocialOut)
+def social_clips(session_id: UUID, body: SocialIn, db: SessionDep, state: StateDep) -> SocialOut:
+    """Social clips (AutoPod's Social Clip Creator): the in/out range as one plan
+    per aspect ratio with speaker-aware framing, optional watermark and end page,
+    optionally without the approved removals. Each comes with an xmeml (one import
+    = one sequence in Premiere) and a suggested render path for the batch export."""
+    row = _session_or_404(db, session_id)
+    if body.out_frame <= body.in_frame:
+        raise PluginError(ErrorCode.INVALID_REQUEST, "out_frame must be after in_frame")
+    plan = _plan(db, row, host=HostApp.PREMIERE, version=body.version, method=PlanMethod.CUTS)
+    if body.in_frame >= plan.sequence.duration_frames:
+        raise PluginError(
+            ErrorCode.INVALID_REQUEST,
+            f"in_frame {body.in_frame} is after the end of the edit "
+            f"({plan.sequence.duration_frames} frames)",
+        )
+
+    def picture(path: str, what: str) -> Picture:
+        try:
+            return load_picture(path)
+        except FileNotFoundError as exc:
+            raise PluginError(ErrorCode.MEDIA_OFFLINE, f"{what} not found: {path}") from exc
+        except (ProbeError, ValueError) as exc:
+            raise PluginError(
+                ErrorCode.UNSUPPORTED_CODEC,
+                f"{what}: {exc}",
+                "use a PNG / JPEG image (or an H.264 / ProRes video)",
+            ) from exc
+
+    options = SocialOptions(
+        watermark=Watermark(
+            picture(body.watermark.path, "watermark"),
+            corner=body.watermark.corner,
+            size=body.watermark.size,
+            opacity=body.watermark.opacity,
+            margin=body.watermark.margin,
+        )
+        if body.watermark
+        else None,
+        end_page=EndPage(picture(body.end_page.path, "end page"), seconds=body.end_page.seconds)
+        if body.end_page
+        else None,
+        jump_cuts=body.jump_cuts,
     )
+    project_row = _project(db, row)
+    base_name = body.name or f"{project_row.name} - Social"
+    try:
+        plans = build_social_plans(
+            plan, body.in_frame, body.out_frame, list(body.aspects), options, name=base_name
+        )
+    except ValueError as exc:
+        raise PluginError(ErrorCode.INVALID_REQUEST, str(exc)) from exc
+    folder = state.storage.exports_dir(UUID(row.project_id)) / "social"
+    folder.mkdir(parents=True, exist_ok=True)
+    clips: list[SocialClipOut] = []
+    for p in plans:
+        stem = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in p.sequence.name)
+        xml_path: str | None = None
+        if body.xml:
+            out = folder / f"{stem}.xml"
+            out.write_text(write_nle(plan_to_timeline(p), NleFormat.XMEML), encoding="utf-8")
+            xml_path = str(out)
+        clips.append(
+            SocialClipOut(
+                aspect=p.aspect,  # type: ignore[arg-type]  # one of SocialAspect by construction
+                name=p.sequence.name,
+                width=p.sequence.width,
+                height=p.sequence.height,
+                duration_frames=p.sequence.duration_frames,
+                plan=p,
+                xml_path=xml_path,
+                render_path=str(folder / f"{stem}.mp4"),
+            )
+        )
+    return SocialOut(clips=clips, export_dir=str(folder), warnings=list(plan.warnings))
+
+
+# ------------------------------------------------------------------ jump cuts
+@router.post("/sessions/{session_id}/jumpcuts", response_model=RunOut, status_code=202)
+def find_jump_cuts(
+    session_id: UUID, body: JumpCutParams, db: SessionDep, state: StateDep
+) -> RunOut:
+    """Find pauses (AutoPod's jump cut editor): a job that stores them as silence
+    removals on a new cutlist version. Follow ``events_url``; then review them with
+    ``GET/PATCH .../removals`` and apply with ``editplan?ripple=true`` or
+    ``export?format=xmeml&ripple=true``."""
+    row = _session_or_404(db, session_id)
+    project = _project(db, row)
+    _cutlist_row(db, project.id, None)  # 409 no_plan before any job is queued
+    busy = _latest_job(db, project.id)
+    if busy is not None and JobStatus(busy.status) in (JobStatus.QUEUED, JobStatus.RUNNING):
+        raise PluginError(
+            ErrorCode.ENGINE_BUSY,
+            "this session is already running",
+            "wait for it to finish or cancel it",
+            status_code=409,
+        )
+    job = JobRow(
+        id=str(uuid4()),
+        project_id=project.id,
+        kind=JobKind.JUMPCUT.value,
+        status=JobStatus.QUEUED.value,
+        params=validate_params(JobKind.JUMPCUT, body.model_dump(mode="json")),
+    )
+    enqueue(state, db, job)
+    return RunOut(
+        job_id=UUID(job.id),
+        kind=JobKind.JUMPCUT.value,
+        events_url=f"/api/plugin/v1/sessions/{session_id}/events?job_id={job.id}",
+    )
+
+
+def _removals_out(cut: CutListRow) -> RemovalsOut:
+    cutlist = CutList.model_validate(cut.data)
+    fps = cutlist.fps.to_fraction()
+    items = [
+        RemovalOut(
+            index=i,
+            start=r.start_frame,
+            end=r.end_frame,
+            kind=r.kind.value,
+            approved=r.approved,
+            seconds=round(float(r.duration_frames / fps), 3),
+        )
+        for i, r in enumerate(cutlist.removals)
+    ]
+    frames = sum(r.end - r.start for r in items if r.approved)
+    return RemovalsOut(
+        cutlist_version=cut.version,
+        duration_frames=cutlist.duration_frames,
+        removed_frames=frames,
+        removed_seconds=round(float(frames / fps), 3),
+        removals=items,
+    )
+
+
+@router.get("/sessions/{session_id}/removals", response_model=RemovalsOut)
+def get_removals(
+    session_id: UUID, db: SessionDep, version: int | None = Query(default=None, ge=1)
+) -> RemovalsOut:
+    """Every removal of the edit (pauses, fillers) and whether it is approved."""
+    row = _session_or_404(db, session_id)
+    return _removals_out(_cutlist_row(db, row.project_id, version))
+
+
+@router.patch("/sessions/{session_id}/removals", response_model=RemovalsOut)
+def update_removals(session_id: UUID, body: RemovalsPatch, db: SessionDep) -> RemovalsOut:
+    """Approve / reject removals (by index) as a new cutlist version."""
+    row = _session_or_404(db, session_id)
+    cut_row = _cutlist_row(db, row.project_id, None)
+    cutlist = CutList.model_validate(cut_row.data)
+    n = len(cutlist.removals)
+    bad = [i for i in [*body.approve, *body.reject] if not 0 <= i < n]
+    if bad:
+        raise PluginError(ErrorCode.INVALID_REQUEST, f"no removal with index {bad[0]} (0..{n - 1})")
+    approved = [r.approved if body.all is None else body.all for r in cutlist.removals]
+    for i in body.approve:
+        approved[i] = True
+    for i in body.reject:
+        approved[i] = False
+    if approved == [r.approved for r in cutlist.removals]:
+        return _removals_out(cut_row)
+    updated = cutlist.model_copy(
+        update={
+            "removals": [
+                r.model_copy(update={"approved": a})
+                for r, a in zip(cutlist.removals, approved, strict=True)
+            ]
+        }
+    )
+    saved = add_cutlist_version(db, row.project_id, updated, source="removals")
+    db.commit()
+    return _removals_out(saved)
 
 
 @router.post("/sessions/{session_id}/feedback", response_model=FeedbackOut)

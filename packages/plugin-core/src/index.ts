@@ -4,6 +4,7 @@ export * from './client';
 export * from './engine';
 export * from './errors';
 export * from './events';
+export * from './extras';
 export * from './plan';
 export * from './session';
 export * from './setup';

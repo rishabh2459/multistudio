@@ -111,6 +111,20 @@ class PlanPiece(StrictModel):
         return self.end - self.start
 
 
+class PlanTransformKey(StrictModel):
+    """Where the media sits at one sequence frame, in the host's Motion terms.
+
+    ``scale`` is percent of the media's native size (Premiere Motion > Scale) and
+    ``x``/``y`` the media's centre in sequence pixels (Motion > Position). Hosts
+    interpolate linearly between keys and hold outside them.
+    """
+
+    frame: int = Field(ge=0, description="Sequence frame")
+    scale: float = Field(gt=0, description="Percent of the media's native size")
+    x: float = Field(description="Media centre, sequence pixels from the left")
+    y: float = Field(description="Media centre, sequence pixels from the top")
+
+
 class VideoEvent(PlanPiece):
     """A piece of the live edit (what the viewer sees)."""
 
@@ -118,10 +132,22 @@ class VideoEvent(PlanPiece):
     confidence: float | None = None
     reframe: Reframe | None = None
     reframe_vertical: Reframe | None = None
+    transform: list[PlanTransformKey] | None = Field(
+        default=None, description="Motion keyframes that show the reframe (None: as placed)"
+    )
 
 
 class TrackPiece(PlanPiece):
     enabled: bool = Field(description="Live at this time (stacked_enable)")
+    transform: list[PlanTransformKey] | None = None
+
+
+class PlanOverlay(PlanPiece):
+    """A picture above the edit (watermark / logo) on its own video track."""
+
+    track: int = Field(ge=1, description="1 = first track above the cameras")
+    opacity: float = Field(default=1.0, ge=0.0, le=1.0)
+    transform: list[PlanTransformKey] | None = None
 
 
 class VideoTrack(StrictModel):
@@ -165,6 +191,11 @@ class EditPlan(StrictModel):
     audio_tracks: list[AudioTrack]
     removals: list[PlanRemoval] = Field(default_factory=list, description="Approved only")
     markers: list[PlanMarker] = Field(default_factory=list)
+    overlays: list[PlanOverlay] = Field(default_factory=list)
+    #: "16:9", "4:5", "9:16" or "1:1" for a social clip; None for the full edit.
+    aspect: str | None = None
+    #: Approved removals are already taken out (a jump-cut edit).
+    rippled: bool = False
     warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -175,6 +206,7 @@ class EditPlan(StrictModel):
             pieces.extend(track.pieces)
         for atrack in self.audio_tracks:
             pieces.extend(atrack.pieces)
+        pieces.extend(self.overlays)
         for p in pieces:
             if p.clip_id not in known:
                 raise ValueError(f"piece refers to unknown media {p.clip_id}")

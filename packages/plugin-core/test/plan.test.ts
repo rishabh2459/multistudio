@@ -57,6 +57,15 @@ describe('decideApply', () => {
     expect(decideApply(plan, { ...caps, maxNativeEvents: 3 }).via).toBe('xml');
     expect(decideApply(plan, caps, { viaXml: true }).via).toBe('xml');
   });
+  it('stacked goes through XML when the host needs two undo steps natively', () => {
+    const twoStep = { ...caps, stackedOneUndo: false };
+    expect(decideApply(plan, twoStep)).toMatchObject({ via: 'xml', method: 'stacked_enable' });
+    expect(decideApply(plan, twoStep).reason).toMatch(/one undo step/);
+    // cuts stay native (one transaction)
+    expect(decideApply(plan, twoStep, { method: 'cuts' }).via).toBe('native');
+    // without XML import the two-step native path is still better than nothing
+    expect(decideApply(plan, { ...twoStep, xmlImport: null }).via).toBe('native');
+  });
 });
 
 describe('placements', () => {

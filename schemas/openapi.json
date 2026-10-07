@@ -574,6 +574,17 @@
       "EditPlan-Input": {
         "additionalProperties": false,
         "properties": {
+          "aspect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aspect"
+          },
           "audio_mode": {
             "$ref": "#/components/schemas/AudioMode",
             "default": "mix"
@@ -611,6 +622,13 @@
             "$ref": "#/components/schemas/PlanMethod",
             "default": "stacked_enable"
           },
+          "overlays": {
+            "items": {
+              "$ref": "#/components/schemas/PlanOverlay-Input"
+            },
+            "title": "Overlays",
+            "type": "array"
+          },
           "plan_version": {
             "const": 1,
             "default": 1,
@@ -630,6 +648,11 @@
             "title": "Removals",
             "type": "array"
           },
+          "rippled": {
+            "default": false,
+            "title": "Rippled",
+            "type": "boolean"
+          },
           "sequence": {
             "$ref": "#/components/schemas/PlanSequence-Input"
           },
@@ -642,7 +665,7 @@
           },
           "video_tracks": {
             "items": {
-              "$ref": "#/components/schemas/VideoTrack"
+              "$ref": "#/components/schemas/VideoTrack-Input"
             },
             "title": "Video Tracks",
             "type": "array"
@@ -670,6 +693,17 @@
       "EditPlan-Output": {
         "additionalProperties": false,
         "properties": {
+          "aspect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aspect"
+          },
           "audio_mode": {
             "$ref": "#/components/schemas/AudioMode",
             "default": "mix"
@@ -707,6 +741,13 @@
             "$ref": "#/components/schemas/PlanMethod",
             "default": "stacked_enable"
           },
+          "overlays": {
+            "items": {
+              "$ref": "#/components/schemas/PlanOverlay-Output"
+            },
+            "title": "Overlays",
+            "type": "array"
+          },
           "plan_version": {
             "const": 1,
             "default": 1,
@@ -726,6 +767,11 @@
             "title": "Removals",
             "type": "array"
           },
+          "rippled": {
+            "default": false,
+            "title": "Rippled",
+            "type": "boolean"
+          },
           "sequence": {
             "$ref": "#/components/schemas/PlanSequence-Output"
           },
@@ -738,7 +784,7 @@
           },
           "video_tracks": {
             "items": {
-              "$ref": "#/components/schemas/VideoTrack"
+              "$ref": "#/components/schemas/VideoTrack-Output"
             },
             "title": "Video Tracks",
             "type": "array"
@@ -765,9 +811,34 @@
           "audio_tracks",
           "removals",
           "markers",
+          "overlays",
+          "aspect",
+          "rippled",
           "warnings"
         ],
         "title": "EditPlan",
+        "type": "object"
+      },
+      "EndPageIn": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "description": "A still or a video appended after the clip",
+            "title": "Path",
+            "type": "string"
+          },
+          "seconds": {
+            "default": 3.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 60.0,
+            "title": "Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "EndPageIn",
         "type": "object"
       },
       "ExportFileOut": {
@@ -1146,7 +1217,8 @@
           "auto",
           "render",
           "proxy",
-          "reframe"
+          "reframe",
+          "jumpcut"
         ],
         "title": "JobKind",
         "type": "string"
@@ -1283,6 +1355,69 @@
         ],
         "title": "JobStatus",
         "type": "string"
+      },
+      "JumpCutParams": {
+        "additionalProperties": false,
+        "description": "Jump-cut editor settings (AutoPod's dB cutoff, or speech detection).",
+        "properties": {
+          "approve": {
+            "default": true,
+            "description": "Removals start approved",
+            "title": "Approve",
+            "type": "boolean"
+          },
+          "mic_threshold_db": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Per-mic cutoff by the mic's clip id (db mode)",
+            "propertyNames": {
+              "format": "uuid"
+            },
+            "title": "Mic Threshold Db",
+            "type": "object"
+          },
+          "min_removal_s": {
+            "default": 0.2,
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Min Removal S",
+            "type": "number"
+          },
+          "min_silence_s": {
+            "default": 0.6,
+            "exclusiveMinimum": 0.0,
+            "maximum": 30.0,
+            "title": "Min Silence S",
+            "type": "number"
+          },
+          "mode": {
+            "default": "db",
+            "description": "db: loudness cutoff on every mic; vad: speech detection",
+            "enum": [
+              "db",
+              "vad"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "pad_s": {
+            "default": 0.15,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Pad S",
+            "type": "number"
+          },
+          "threshold_db": {
+            "default": -40.0,
+            "maximum": 0.0,
+            "minimum": -90.0,
+            "title": "Threshold Db",
+            "type": "number"
+          }
+        },
+        "title": "JumpCutParams",
+        "type": "object"
       },
       "LicenceInfo": {
         "additionalProperties": false,
@@ -1918,6 +2053,156 @@
         "title": "PlanMethod",
         "type": "string"
       },
+      "PlanOverlay-Input": {
+        "additionalProperties": false,
+        "description": "A picture above the edit (watermark / logo) on its own video track.",
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "opacity": {
+            "default": 1.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Opacity",
+            "type": "number"
+          },
+          "source_in_frame": {
+            "description": "Frames at the media's own rate (nearest)",
+            "title": "Source In Frame",
+            "type": "integer"
+          },
+          "source_in_sample": {
+            "description": "Samples at the media's audio rate (nearest)",
+            "title": "Source In Sample",
+            "type": "integer"
+          },
+          "source_in_ticks": {
+            "description": "Premiere ticks (254016000000 per second)",
+            "title": "Source In Ticks",
+            "type": "integer"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          },
+          "track": {
+            "description": "1 = first track above the cameras",
+            "minimum": 1.0,
+            "title": "Track",
+            "type": "integer"
+          },
+          "transform": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlanTransformKey"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transform"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "clip_id",
+          "source_in_frame",
+          "source_in_sample",
+          "source_in_ticks",
+          "track"
+        ],
+        "title": "PlanOverlay",
+        "type": "object"
+      },
+      "PlanOverlay-Output": {
+        "additionalProperties": false,
+        "description": "A picture above the edit (watermark / logo) on its own video track.",
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "opacity": {
+            "default": 1.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Opacity",
+            "type": "number"
+          },
+          "source_in_frame": {
+            "description": "Frames at the media's own rate (nearest)",
+            "title": "Source In Frame",
+            "type": "integer"
+          },
+          "source_in_sample": {
+            "description": "Samples at the media's audio rate (nearest)",
+            "title": "Source In Sample",
+            "type": "integer"
+          },
+          "source_in_ticks": {
+            "description": "Premiere ticks (254016000000 per second)",
+            "title": "Source In Ticks",
+            "type": "integer"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          },
+          "track": {
+            "description": "1 = first track above the cameras",
+            "minimum": 1.0,
+            "title": "Track",
+            "type": "integer"
+          },
+          "transform": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlanTransformKey"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transform"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "clip_id",
+          "source_in_frame",
+          "source_in_sample",
+          "source_in_ticks",
+          "track",
+          "opacity",
+          "transform"
+        ],
+        "title": "PlanOverlay",
+        "type": "object"
+      },
       "PlanPiece": {
         "additionalProperties": false,
         "description": "Sequence frames [start, end) show the media from ``source_in``.",
@@ -2105,6 +2390,42 @@
           "low_confidence_cuts"
         ],
         "title": "PlanSummary",
+        "type": "object"
+      },
+      "PlanTransformKey": {
+        "additionalProperties": false,
+        "description": "Where the media sits at one sequence frame, in the host's Motion terms.\n\n``scale`` is percent of the media's native size (Premiere Motion > Scale) and\n``x``/``y`` the media's centre in sequence pixels (Motion > Position). Hosts\ninterpolate linearly between keys and hold outside them.",
+        "properties": {
+          "frame": {
+            "description": "Sequence frame",
+            "minimum": 0.0,
+            "title": "Frame",
+            "type": "integer"
+          },
+          "scale": {
+            "description": "Percent of the media's native size",
+            "exclusiveMinimum": 0.0,
+            "title": "Scale",
+            "type": "number"
+          },
+          "x": {
+            "description": "Media centre, sequence pixels from the left",
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "description": "Media centre, sequence pixels from the top",
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "frame",
+          "scale",
+          "x",
+          "y"
+        ],
+        "title": "PlanTransformKey",
         "type": "object"
       },
       "Preset": {
@@ -2745,6 +3066,117 @@
         ],
         "title": "RemovalKind",
         "type": "string"
+      },
+      "RemovalOut": {
+        "additionalProperties": false,
+        "properties": {
+          "approved": {
+            "title": "Approved",
+            "type": "boolean"
+          },
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "index": {
+            "description": "Position in the cutlist's removals (for PATCH)",
+            "title": "Index",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "start",
+          "end",
+          "kind",
+          "approved",
+          "seconds"
+        ],
+        "title": "RemovalOut",
+        "type": "object"
+      },
+      "RemovalsOut": {
+        "additionalProperties": false,
+        "properties": {
+          "cutlist_version": {
+            "title": "Cutlist Version",
+            "type": "integer"
+          },
+          "duration_frames": {
+            "title": "Duration Frames",
+            "type": "integer"
+          },
+          "removals": {
+            "items": {
+              "$ref": "#/components/schemas/RemovalOut"
+            },
+            "title": "Removals",
+            "type": "array"
+          },
+          "removed_frames": {
+            "description": "Approved removals only",
+            "title": "Removed Frames",
+            "type": "integer"
+          },
+          "removed_seconds": {
+            "title": "Removed Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "cutlist_version",
+          "duration_frames",
+          "removed_frames",
+          "removed_seconds",
+          "removals"
+        ],
+        "title": "RemovalsOut",
+        "type": "object"
+      },
+      "RemovalsPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "all": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Approve (true) / reject (false) all first",
+            "title": "All"
+          },
+          "approve": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Approve",
+            "type": "array"
+          },
+          "reject": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Reject",
+            "type": "array"
+          }
+        },
+        "title": "RemovalsPatch",
+        "type": "object"
       },
       "RoleIn": {
         "additionalProperties": false,
@@ -3469,6 +3901,69 @@
         "title": "ShotType",
         "type": "string"
       },
+      "SocialClipOut": {
+        "additionalProperties": false,
+        "properties": {
+          "aspect": {
+            "enum": [
+              "16:9",
+              "4:5",
+              "9:16",
+              "1:1"
+            ],
+            "title": "Aspect",
+            "type": "string"
+          },
+          "duration_frames": {
+            "title": "Duration Frames",
+            "type": "integer"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/EditPlan-Output"
+          },
+          "render_path": {
+            "description": "Suggested output file for the batch export",
+            "title": "Render Path",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          },
+          "xml_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "xmeml of this clip (import fallback)",
+            "title": "Xml Path"
+          }
+        },
+        "required": [
+          "aspect",
+          "name",
+          "width",
+          "height",
+          "duration_frames",
+          "plan",
+          "xml_path",
+          "render_path"
+        ],
+        "title": "SocialClipOut",
+        "type": "object"
+      },
       "SocialIn": {
         "additionalProperties": false,
         "properties": {
@@ -3486,15 +3981,75 @@
             "title": "Aspects",
             "type": "array"
           },
+          "end_page": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EndPageIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "in_frame": {
+            "description": "Plan frame where the clip starts",
             "minimum": 0.0,
             "title": "In Frame",
             "type": "integer"
           },
+          "jump_cuts": {
+            "default": false,
+            "description": "Ripple out the approved removals",
+            "title": "Jump Cuts",
+            "type": "boolean"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
           "out_frame": {
+            "description": "Plan frame where it ends (exclusive)",
             "exclusiveMinimum": 0.0,
             "title": "Out Frame",
             "type": "integer"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cutlist version (latest)",
+            "title": "Version"
+          },
+          "watermark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatermarkIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "xml": {
+            "default": true,
+            "description": "Also write an xmeml per aspect (Premiere)",
+            "title": "Xml",
+            "type": "boolean"
           }
         },
         "required": [
@@ -3503,6 +4058,36 @@
           "aspects"
         ],
         "title": "SocialIn",
+        "type": "object"
+      },
+      "SocialOut": {
+        "additionalProperties": false,
+        "properties": {
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/SocialClipOut"
+            },
+            "title": "Clips",
+            "type": "array"
+          },
+          "export_dir": {
+            "title": "Export Dir",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "clips",
+          "export_dir",
+          "warnings"
+        ],
+        "title": "SocialOut",
         "type": "object"
       },
       "Speaker-Input": {
@@ -3995,7 +4580,7 @@
         "title": "TimelineOut",
         "type": "object"
       },
-      "TrackPiece": {
+      "TrackPiece-Input": {
         "additionalProperties": false,
         "properties": {
           "clip_id": {
@@ -4032,6 +4617,20 @@
             "minimum": 0.0,
             "title": "Start",
             "type": "integer"
+          },
+          "transform": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlanTransformKey"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transform"
           }
         },
         "required": [
@@ -4042,6 +4641,72 @@
           "source_in_sample",
           "source_in_ticks",
           "enabled"
+        ],
+        "title": "TrackPiece",
+        "type": "object"
+      },
+      "TrackPiece-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Live at this time (stacked_enable)",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "source_in_frame": {
+            "description": "Frames at the media's own rate (nearest)",
+            "title": "Source In Frame",
+            "type": "integer"
+          },
+          "source_in_sample": {
+            "description": "Samples at the media's audio rate (nearest)",
+            "title": "Source In Sample",
+            "type": "integer"
+          },
+          "source_in_ticks": {
+            "description": "Premiere ticks (254016000000 per second)",
+            "title": "Source In Ticks",
+            "type": "integer"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          },
+          "transform": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlanTransformKey"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transform"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "clip_id",
+          "source_in_frame",
+          "source_in_sample",
+          "source_in_ticks",
+          "enabled",
+          "transform"
         ],
         "title": "TrackPiece",
         "type": "object"
@@ -4173,6 +4838,21 @@
             "minimum": 0.0,
             "title": "Start",
             "type": "integer"
+          },
+          "transform": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlanTransformKey"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Motion keyframes that show the reframe (None: as placed)",
+            "title": "Transform"
           }
         },
         "required": [
@@ -4254,6 +4934,21 @@
             "minimum": 0.0,
             "title": "Start",
             "type": "integer"
+          },
+          "transform": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlanTransformKey"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Motion keyframes that show the reframe (None: as placed)",
+            "title": "Transform"
           }
         },
         "required": [
@@ -4266,12 +4961,13 @@
           "shot",
           "confidence",
           "reframe",
-          "reframe_vertical"
+          "reframe_vertical",
+          "transform"
         ],
         "title": "VideoEvent",
         "type": "object"
       },
-      "VideoTrack": {
+      "VideoTrack-Input": {
         "additionalProperties": false,
         "properties": {
           "clip_id": {
@@ -4286,7 +4982,7 @@
           },
           "pieces": {
             "items": {
-              "$ref": "#/components/schemas/TrackPiece"
+              "$ref": "#/components/schemas/TrackPiece-Input"
             },
             "title": "Pieces",
             "type": "array"
@@ -4298,6 +4994,85 @@
           "pieces"
         ],
         "title": "VideoTrack",
+        "type": "object"
+      },
+      "VideoTrack-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "format": "uuid",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 1.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "pieces": {
+            "items": {
+              "$ref": "#/components/schemas/TrackPiece-Output"
+            },
+            "title": "Pieces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "index",
+          "clip_id",
+          "pieces"
+        ],
+        "title": "VideoTrack",
+        "type": "object"
+      },
+      "WatermarkIn": {
+        "additionalProperties": false,
+        "properties": {
+          "corner": {
+            "default": "bottom_right",
+            "enum": [
+              "top_left",
+              "top_right",
+              "bottom_left",
+              "bottom_right",
+              "center"
+            ],
+            "title": "Corner",
+            "type": "string"
+          },
+          "margin": {
+            "default": 0.04,
+            "description": "Fraction of the width",
+            "maximum": 0.4,
+            "minimum": 0.0,
+            "title": "Margin",
+            "type": "number"
+          },
+          "opacity": {
+            "default": 0.9,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Opacity",
+            "type": "number"
+          },
+          "path": {
+            "description": "PNG / JPEG / GIF / WebP (or a short video)",
+            "title": "Path",
+            "type": "string"
+          },
+          "size": {
+            "default": 0.18,
+            "description": "Fraction of the frame width",
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Size",
+            "type": "number"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "WatermarkIn",
         "type": "object"
       },
       "WaveformOut": {
@@ -4986,7 +5761,7 @@
     },
     "/api/plugin/v1/sessions/{session_id}/editplan": {
       "get": {
-        "description": "The edit as host operations (default: latest version, the session's method).",
+        "description": "The edit as host operations (default: latest version, the session's method).\n``ripple``: the approved removals taken out of every track (jump-cut edit).",
         "operationId": "get_editplan_api_plugin_v1_sessions__session_id__editplan_get",
         "parameters": [
           {
@@ -5039,6 +5814,16 @@
                 }
               ],
               "title": "Method"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ripple",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Ripple",
+              "type": "boolean"
             }
           }
         ],
@@ -5131,7 +5916,7 @@
     },
     "/api/plugin/v1/sessions/{session_id}/export": {
       "get": {
-        "description": "Write the plan as a file the host can import (Rule C fallback).\n\n``fcpxml`` with method ``multicam`` (or ``fcpxml_multicam``) writes a multicam\nclip with angle switches (Final Cut, Resolve).",
+        "description": "Write the plan as a file the host can import (Rule C fallback).\n\n``fcpxml`` with method ``multicam`` (or ``fcpxml_multicam``) writes a multicam\nclip with angle switches (Final Cut, Resolve). ``xmeml`` with method\n``multicam`` writes the stacked edit + a \"Multicam Source\" sequence (Premiere).",
         "operationId": "export_session_api_plugin_v1_sessions__session_id__export_get",
         "parameters": [
           {
@@ -5185,6 +5970,16 @@
                 }
               ],
               "title": "Method"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ripple",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Ripple",
+              "type": "boolean"
             }
           }
         ],
@@ -5265,6 +6060,173 @@
           }
         },
         "summary": "Feedback",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}/jumpcuts": {
+      "post": {
+        "description": "Find pauses (AutoPod's jump cut editor): a job that stores them as silence\nremovals on a new cutlist version. Follow ``events_url``; then review them with\n``GET/PATCH .../removals`` and apply with ``editplan?ripple=true`` or\n``export?format=xmeml&ripple=true``.",
+        "operationId": "find_jump_cuts_api_plugin_v1_sessions__session_id__jumpcuts_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JumpCutParams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Find Jump Cuts",
+        "tags": [
+          "plugin"
+        ]
+      }
+    },
+    "/api/plugin/v1/sessions/{session_id}/removals": {
+      "get": {
+        "description": "Every removal of the edit (pauses, fillers) and whether it is approved.",
+        "operationId": "get_removals_api_plugin_v1_sessions__session_id__removals_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovalsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Removals",
+        "tags": [
+          "plugin"
+        ]
+      },
+      "patch": {
+        "description": "Approve / reject removals (by index) as a new cutlist version.",
+        "operationId": "update_removals_api_plugin_v1_sessions__session_id__removals_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemovalsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovalsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Removals",
         "tags": [
           "plugin"
         ]
@@ -5379,7 +6341,7 @@
     },
     "/api/plugin/v1/sessions/{session_id}/social": {
       "post": {
-        "description": "Social clips (in/out -> one plan per aspect ratio) arrive in PL5.",
+        "description": "Social clips (AutoPod's Social Clip Creator): the in/out range as one plan\nper aspect ratio with speaker-aware framing, optional watermark and end page,\noptionally without the approved removals. Each comes with an xmeml (one import\n= one sequence in Premiere) and a suggested render path for the batch export.",
         "operationId": "social_clips_api_plugin_v1_sessions__session_id__social_post",
         "parameters": [
           {
@@ -5408,9 +6370,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Social Clips Api Plugin V1 Sessions  Session Id  Social Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/SocialOut"
                 }
               }
             },

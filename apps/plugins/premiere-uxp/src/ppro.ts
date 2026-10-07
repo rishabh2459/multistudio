@@ -75,6 +75,23 @@ export interface Sequence {
   getTimebase(): Promise<string>; // ticks per frame
   getFrameSize(): Promise<RectF>;
   getEndTime(): Promise<TickTime>;
+  /** Sequence In / Out marks (25.6+). */
+  getInPoint?(): Promise<TickTime>;
+  getOutPoint?(): Promise<TickTime>;
+}
+
+/** Adobe Media Encoder bridge (`EncoderManager.getManager()`, 25.6+). */
+export interface EncoderManager {
+  readonly isAMEInstalled: boolean;
+  exportSequence(
+    sequence: Sequence,
+    exportType: number | string,
+    outputFile: string,
+    presetFile: string,
+    exportFull: boolean,
+  ): Promise<boolean>;
+  /** 26.3+ */
+  startBatchEncode?(): Promise<boolean>;
 }
 
 export interface SequenceEditor {
@@ -98,6 +115,8 @@ export interface Markers {
 
 export interface FolderItem extends ProjectItem {
   getItems(): Promise<ProjectItem[]>;
+  /** 25.6+: action that creates a child bin. */
+  createBinAction?(name: string, makeUnique: boolean): Action;
 }
 
 export interface Project {
@@ -126,7 +145,13 @@ export interface PremierePro {
   SequenceEditor: { getEditor(sequence: Sequence): SequenceEditor };
   Markers: { getMarkers(owner: Sequence): Promise<Markers> };
   ClipProjectItem: { cast(item: ProjectItem): ClipProjectItem };
-  Constants: { TrackItemType: { CLIP: number }; MarkerType?: { COMMENT?: string } };
+  FolderItem?: { cast(item: ProjectItem): FolderItem };
+  EncoderManager?: { getManager(): EncoderManager };
+  Constants: {
+    TrackItemType: { CLIP: number };
+    MarkerType?: { COMMENT?: string };
+    ExportType?: { QUEUE_TO_AME: number | string; IMMEDIATELY?: number | string };
+  };
 }
 
 /** UXP host modules this plugin uses (`require('uxp')`, `require('os')`). */
@@ -136,4 +161,6 @@ export interface UxpHost {
   homedir(): string;
   platform(): 'mac' | 'windows';
   appVersion: string;
+  /** Native file picker; resolves the chosen file's path (null: cancelled). */
+  pickFile?(extensions: string[]): Promise<string | null>;
 }

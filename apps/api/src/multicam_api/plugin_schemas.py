@@ -219,7 +219,71 @@ class FeedbackOut(ApiModel):
     cuts_kept: int = Field(description="Auto cuts the editor kept (within 2 frames)")
 
 
+SocialAspect = Literal["16:9", "4:5", "9:16", "1:1"]
+
+
+class WatermarkIn(ApiModel):
+    path: str = Field(description="PNG / JPEG / GIF / WebP (or a short video)")
+    corner: Literal["top_left", "top_right", "bottom_left", "bottom_right", "center"] = (
+        "bottom_right"
+    )
+    size: float = Field(default=0.18, gt=0.0, le=1.0, description="Fraction of the frame width")
+    opacity: float = Field(default=0.9, ge=0.0, le=1.0)
+    margin: float = Field(default=0.04, ge=0.0, le=0.4, description="Fraction of the width")
+
+
+class EndPageIn(ApiModel):
+    path: str = Field(description="A still or a video appended after the clip")
+    seconds: float = Field(default=3.0, gt=0.0, le=60.0)
+
+
 class SocialIn(ApiModel):
-    in_frame: int = Field(ge=0)
-    out_frame: int = Field(gt=0)
-    aspects: list[Literal["16:9", "4:5", "9:16", "1:1"]] = Field(min_length=1)
+    in_frame: int = Field(ge=0, description="Plan frame where the clip starts")
+    out_frame: int = Field(gt=0, description="Plan frame where it ends (exclusive)")
+    aspects: list[SocialAspect] = Field(min_length=1)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    watermark: WatermarkIn | None = None
+    end_page: EndPageIn | None = None
+    jump_cuts: bool = Field(default=False, description="Ripple out the approved removals")
+    version: int | None = Field(default=None, ge=1, description="Cutlist version (latest)")
+    xml: bool = Field(default=True, description="Also write an xmeml per aspect (Premiere)")
+
+
+class RemovalOut(ApiModel):
+    index: int = Field(description="Position in the cutlist's removals (for PATCH)")
+    start: int
+    end: int
+    kind: str
+    approved: bool
+    seconds: float
+
+
+class RemovalsOut(ApiModel):
+    cutlist_version: int
+    duration_frames: int
+    removed_frames: int = Field(description="Approved removals only")
+    removed_seconds: float
+    removals: list[RemovalOut]
+
+
+class RemovalsPatch(ApiModel):
+    approve: list[int] = Field(default_factory=list)
+    reject: list[int] = Field(default_factory=list)
+    all: bool | None = Field(default=None, description="Approve (true) / reject (false) all first")
+
+
+class SocialClipOut(ApiModel):
+    aspect: SocialAspect
+    name: str
+    width: int
+    height: int
+    duration_frames: int
+    plan: EditPlan
+    xml_path: str | None = Field(description="xmeml of this clip (import fallback)")
+    render_path: str = Field(description="Suggested output file for the batch export")
+
+
+class SocialOut(ApiModel):
+    clips: list[SocialClipOut]
+    export_dir: str
+    warnings: list[str]

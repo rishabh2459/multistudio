@@ -33,6 +33,14 @@ function uxpHost(): UxpHost {
     openExternal: async (url) => {
       await uxp.shell.openExternal(url, 'Multicam Studio will start its processing engine.');
     },
+    pickFile: async (extensions) => {
+      try {
+        const file = await uxp.storage.localFileSystem.getFileForOpening({ types: extensions });
+        return file ? String(file.nativePath) : null;
+      } catch {
+        return null;
+      }
+    },
   };
 }
 

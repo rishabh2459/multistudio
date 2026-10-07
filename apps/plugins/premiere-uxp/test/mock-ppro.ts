@@ -8,6 +8,7 @@ import type {
   ClipProjectItem,
   ClipTrackItem,
   CompoundAction,
+  FolderItem,
   PremierePro,
   Project,
   ProjectItem,
@@ -119,12 +120,21 @@ class FakeTrack implements Track {
   }
 }
 
+const seen = new Map<string, number>();
+/** `guid:<name>`, then `guid:<name>#2` ... for later sequences with the same name. */
+function uniqueGuid(name: string) {
+  const n = (seen.get(name) ?? 0) + 1;
+  seen.set(name, n);
+  const id = n === 1 ? `guid:${name}` : `guid:${name}#${n}`;
+  return { toString: () => id };
+}
+
 export class FakeSequence implements Sequence {
   video: FakeTrack[] = [];
   audio: FakeTrack[] = [];
   constructor(
     readonly name: string,
-    readonly guid = { toString: () => `guid:${name}` },
+    readonly guid = uniqueGuid(name),
     readonly timebase = '8475667200',
     readonly size = { width: 1920, height: 1080 },
   ) {}
@@ -146,14 +156,41 @@ export class FakeSequence implements Sequence {
   async getFrameSize() {
     return this.size;
   }
+  inF = 0;
+  outF = 0;
+  endF = 0;
   async getEndTime() {
-    return tt(0n);
+    return tt(BigInt(this.endF) * BigInt(this.timebase));
+  }
+  async getInPoint() {
+    return tt(BigInt(this.inF) * BigInt(this.timebase));
+  }
+  async getOutPoint() {
+    return tt(BigInt(this.outF) * BigInt(this.timebase));
   }
   track(kind: 'video' | 'audio', i: number): FakeTrack {
     const list = kind === 'video' ? this.video : this.audio;
     while (list.length <= i)
       list.push(new FakeTrack(`${kind[0]!.toUpperCase()}${list.length + 1}`, list.length));
     return list[i]!;
+  }
+}
+
+export class FakeFolder {
+  extra: ProjectItem[] = [];
+  constructor(
+    readonly name: string,
+    private readonly rules: Rules,
+    readonly children: FakeFolder[] = [],
+  ) {}
+  async getItems(): Promise<ProjectItem[]> {
+    return [...this.extra, ...(this.children as unknown as ProjectItem[])];
+  }
+  createBinAction(name: string): Action {
+    const a = act(this.rules, 'createBin', [name, this.name]);
+    (a as RecordedAction & { apply?: () => void }).apply = () =>
+      this.children.push(new FakeFolder(name, this.rules));
+    return a;
   }
 }
 
@@ -165,8 +202,16 @@ export class FakeProject implements Project {
   clips: FakeClip[] = [];
   transactions: { undo: string; actions: RecordedAction[] }[] = [];
   imported: string[] = [];
+  /** Bin each import went into. */
+  importedInto: string[] = [];
+  /** suppressUI flag of each import (the panel never shows Premiere's import dialog). */
+  suppressedUI: boolean[] = [];
   opened: string[] = [];
-  onImport: ((path: string) => FakeSequence | null) | null = null;
+  bins: FakeFolder[] = [];
+  exports: { sequence: string; output: string; preset: string }[] = [];
+  amePresent = true;
+  batchStarted = false;
+  onImport: ((path: string) => FakeSequence | FakeSequence[] | null) | null = null;
 
   addClip(name: string, path: string): FakeClip {
     const c = new FakeClip(name, path, this.rules);
@@ -209,10 +254,12 @@ export class FakeProject implements Project {
   async setActiveSequence() {
     return true;
   }
-  async importFiles(paths: string[]) {
+  async importFiles(paths: string[], suppressUI = true, bin: ProjectItem | null = null) {
     this.imported.push(...paths);
-    const seq = this.onImport?.(paths[0]!);
-    if (seq) this.sequences.push(seq);
+    this.suppressedUI.push(suppressUI);
+    this.importedInto.push(bin?.name ?? 'root');
+    const made = this.onImport?.(paths[0]!);
+    for (const seq of Array.isArray(made) ? made : made ? [made] : []) this.sequences.push(seq);
     return true;
   }
   async createSequence(name: string) {
@@ -222,12 +269,13 @@ export class FakeProject implements Project {
   }
   async getRootItem() {
     const clips = this.clips;
-    return {
-      name: 'root',
-      getItems: async () => [
-        { name: 'Media', getItems: async () => clips as ProjectItem[] } as unknown as ProjectItem,
-      ],
-    };
+    const rules = this.rules;
+    const bins = this.bins;
+    const root = new FakeFolder('root', rules, bins);
+    root.extra = [
+      { name: 'Media', getItems: async () => clips as ProjectItem[] } as unknown as ProjectItem,
+    ];
+    return root;
   }
   async getInsertionBin() {
     return { name: 'root' } as ProjectItem;
@@ -296,7 +344,30 @@ export function fakePpro(project: FakeProject): PremierePro {
       }),
     },
     ClipProjectItem: { cast: (item: ProjectItem) => item as ClipProjectItem },
-    Constants: { TrackItemType: { CLIP: 1 }, MarkerType: { COMMENT: 'Comment' } },
+    FolderItem: { cast: (item: ProjectItem) => item as unknown as FolderItem },
+    EncoderManager: {
+      getManager: () => ({
+        get isAMEInstalled() {
+          return project.amePresent;
+        },
+        exportSequence: async (
+          seq: Sequence,
+          type: number | string,
+          out: string,
+          preset: string,
+        ) => {
+          if (type !== 'QUEUE_TO_AME') throw new Error(`unexpected export type ${type}`);
+          project.exports.push({ sequence: seq.name, output: out, preset });
+          return true;
+        },
+        startBatchEncode: async () => (project.batchStarted = true),
+      }),
+    },
+    Constants: {
+      TrackItemType: { CLIP: 1 },
+      MarkerType: { COMMENT: 'Comment' },
+      ExportType: { QUEUE_TO_AME: 'QUEUE_TO_AME' },
+    },
   };
 }
 

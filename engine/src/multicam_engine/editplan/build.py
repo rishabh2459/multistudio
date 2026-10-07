@@ -21,10 +21,12 @@ from multicam_engine.editplan.model import (
     PlanPiece,
     PlanRemoval,
     PlanSequence,
+    PlanTransformKey,
     TrackPiece,
     VideoEvent,
     VideoTrack,
 )
+from multicam_engine.editplan.transform import crop_transform
 from multicam_engine.export._util import to_frames
 from multicam_engine.export.timeline import (
     ClipMapper,
@@ -32,6 +34,7 @@ from multicam_engine.export.timeline import (
     Marker,
     NleTimeline,
     Source,
+    TransformKey,
     build_nle_timeline,
     make_source,
 )
@@ -149,27 +152,39 @@ def build_edit_plan(
                 confidence=seg.confidence,
                 reframe=seg.reframe,
                 reframe_vertical=seg.reframe_vertical,
+                transform=crop_transform(
+                    seg.reframe,
+                    (sources[ev.clip_id].width, sources[ev.clip_id].height),
+                    (tl.width, tl.height),
+                    ev.start,
+                    ev.end,
+                ),
             )
         )
 
     # Stacked: every camera on its own track, split at every cut, live piece enabled.
     bounds = [s.start_frame for s in cutlist.segments] + [cutlist.duration_frames]
-    live = [s.clip_id for s in cutlist.segments]
     tracks: list[VideoTrack] = []
     for cam in cameras:
         cid, src, mapper = cam.clip_id, sources[cam.clip_id], mappers[cam.clip_id]
         pieces: list[TrackPiece] = []
-        for (a, b), on_air in zip(pairwise(bounds), live, strict=True):
+        for (a, b), seg in zip(pairwise(bounds), cutlist.segments, strict=True):
             head, tail = covered_frames(mapper.timing, fps, a, b - a, src.fps)
             start, end = a + head, b - tail
             if end > start:
+                on_air = seg.clip_id == cid
                 pieces.append(
                     TrackPiece(
                         start=start,
                         end=end,
                         clip_id=cid,
                         **_piece_times(src, mapper.media_time(start)),
-                        enabled=on_air == cid,
+                        enabled=on_air,
+                        transform=crop_transform(
+                            seg.reframe, (src.width, src.height), (tl.width, tl.height), start, end
+                        )
+                        if on_air
+                        else None,
                     )
                 )
         tracks.append(VideoTrack(index=angles[cid], clip_id=cid, pieces=pieces))
@@ -231,12 +246,26 @@ def build_edit_plan(
     )
 
 
-def _seconds(piece: PlanPiece) -> Fraction:
+def piece_seconds(piece: PlanPiece) -> Fraction:
+    """Source position of a piece in exact seconds (from its Premiere ticks)."""
     return Fraction(piece.source_in_ticks, TICKS_PER_SECOND)
 
 
-def plan_to_timeline(plan: EditPlan) -> NleTimeline:
-    """The plan as the XML/EDL writers' input (Rule C fallback)."""
+def _keys(keys: list[PlanTransformKey] | None) -> tuple[TransformKey, ...]:
+    return tuple(TransformKey(k.frame, k.scale, k.x, k.y) for k in keys or [])
+
+
+def _event(piece: PlanPiece, transform: list[PlanTransformKey] | None = None) -> Event:
+    return Event(piece.clip_id, piece.start, piece.end, piece_seconds(piece), _keys(transform))
+
+
+def plan_to_timeline(plan: EditPlan, *, stacked: bool | None = None) -> NleTimeline:
+    """The plan as the XML/EDL writers' input (Rule C fallback).
+
+    ``stacked`` forces (True) or suppresses (False) the one-track-per-camera layout;
+    default: stacked for the ``stacked_enable`` method."""
+    if stacked is None:
+        stacked = plan.method is PlanMethod.STACKED_ENABLE
     sources: dict[UUID, Source] = {}
     for m in plan.media:
         fps = m.fps.to_fraction()
@@ -263,17 +292,32 @@ def plan_to_timeline(plan: EditPlan) -> NleTimeline:
         height=plan.sequence.height,
         duration_frames=plan.sequence.duration_frames,
         sources=sources,
-        video=[Event(e.clip_id, e.start, e.end, _seconds(e)) for e in plan.video_events],
+        video=[_event(e, e.transform) for e in plan.video_events],
         audio={
-            t.clip_id: [Event(p.clip_id, p.start, p.end, _seconds(p)) for p in t.pieces]
+            t.clip_id: [_event(p) for p in t.pieces]
             for t in sorted(plan.audio_tracks, key=lambda t: t.index)
         },
         warnings=list(plan.warnings),
         markers=[Marker(m.frame, m.note, m.color.value) for m in plan.markers],
         stacked=[
-            [(Event(p.clip_id, p.start, p.end, _seconds(p)), p.enabled) for p in t.pieces]
+            [(_event(p, p.transform), p.enabled) for p in t.pieces]
             for t in sorted(plan.video_tracks, key=lambda t: t.index)
         ]
-        if plan.method is PlanMethod.STACKED_ENABLE
+        if stacked
         else [],
+        overlays=[
+            [
+                Event(
+                    o.clip_id,
+                    o.start,
+                    o.end,
+                    piece_seconds(o),
+                    _keys(o.transform),
+                    None if o.opacity >= 1.0 else o.opacity,
+                )
+                for o in plan.overlays
+                if o.track == track
+            ]
+            for track in sorted({o.track for o in plan.overlays})
+        ],
     )

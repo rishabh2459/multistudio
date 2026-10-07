@@ -163,6 +163,7 @@ class JobKind(StrEnum):
     RENDER = "render"  # final video from the latest cutlist
     PROXY = "proxy"  # low-resolution previews for the timeline editor
     REFRAME = "reframe"  # auto framing: faces -> punch-ins, 16:9 and 9:16 crops
+    JUMPCUT = "jumpcut"  # pauses -> silence removals (new cutlist version)
 
 
 class JobStatus(StrEnum):
@@ -218,6 +219,22 @@ class RenderParams(ApiModel):
     audio_clip_id: UUID | None = Field(default=None, description="Use only this clip's audio")
 
 
+class JumpCutParams(ApiModel):
+    """Jump-cut editor settings (AutoPod's dB cutoff, or speech detection)."""
+
+    mode: Literal["db", "vad"] = Field(
+        default="db", description="db: loudness cutoff on every mic; vad: speech detection"
+    )
+    threshold_db: float = Field(default=-40.0, ge=-90.0, le=0.0)
+    mic_threshold_db: dict[UUID, float] = Field(
+        default_factory=dict, description="Per-mic cutoff by the mic's clip id (db mode)"
+    )
+    min_silence_s: float = Field(default=0.6, gt=0.0, le=30.0)
+    pad_s: float = Field(default=0.15, ge=0.0, le=2.0)
+    min_removal_s: float = Field(default=0.2, ge=0.0, le=10.0)
+    approve: bool = Field(default=True, description="Removals start approved")
+
+
 class EmptyParams(ApiModel):
     pass
 
@@ -231,6 +248,7 @@ PARAMS_BY_KIND: dict[JobKind, type[ApiModel]] = {
     JobKind.RENDER: RenderParams,
     JobKind.PROXY: EmptyParams,
     JobKind.REFRAME: ReframeParams,
+    JobKind.JUMPCUT: JumpCutParams,
 }
 
 
